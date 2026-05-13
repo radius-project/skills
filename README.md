@@ -1,6 +1,6 @@
 # Radius Skills
 
-AI agent skills for working with [Radius](https://github.com/radius-project/radius) applications.
+Agent skills for modeling applications with [Radius](https://github.com/radius-project/radius).
 
 ## Installation
 

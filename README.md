@@ -5,7 +5,7 @@ Agent skills for modeling applications with [Radius](https://github.com/radius-p
 ## Installation
 
 ```bash
-npx skills add radius-project/radius-skills
+npx skills add radius-project/skills
 ```
 
 ## Available Skills

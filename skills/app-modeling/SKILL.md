@@ -28,7 +28,7 @@ Your entire visible response must follow this exact sequence. No headings, no st
 4. Say: I see this repository has a single application called `<app-name>`.
 5. Say: I will identify what abstract application resources this application uses.
 6. Say: It has these application resources:
-7. List resources as a numbered list (e.g. "1. Container: todo-list-frontend")
+7. List resources as a numbered list (e.g. "1. Container: todo-list-app")
 8. Say: An application definition has been created for `<app-name>`.
 9. Output the `.radius/app.bicep` code block.
 10. Say: Would you like me to create a pull request with this file?
@@ -60,36 +60,38 @@ These rules eliminate ambiguity. Apply them exactly.
 | Resource | Symbolic name |
 |---|---|
 | Application | `<shortName>App` where `<shortName>` is the app name without hyphens, camelCase (e.g., `todo-list-app` → `todoApp`) |
-| Container | `<shortName>Container` (e.g., `todoContainer`) |
-| Container image | `<shortName>Image` (e.g., `todoImage`) |
-| Database | `database` (always) |
-| Database secret | `dbSecret` (always) |
-| Route | `<shortName>Route` (e.g., `todoRoute`) |
+| Container | `<serviceName>Container` — service short name camelCase; single-container apps use `<shortName>Container` (e.g., `todoContainer`) |
+| Container image | `<serviceName>Image` (e.g., `todoImage`) |
+| Data store (database/cache/queue) | `<engine>` + role suffix, camelCase: `mysqlDb`, `postgresDb`, `neo4jDb`, `redisCache`. Multiple of the same engine: prefix with the source store name (e.g., `ordersPostgresDb`) |
+| Data store secret | `<engine>Secret` (e.g., `mysqlSecret`) — one per data store that needs credentials |
+| Route | `<serviceName>Route` (e.g., `todoRoute`) |
 
 ### Resource `name` properties (string values in Bicep)
 
 | Resource | Name value |
 |---|---|
 | Application | Repository name in kebab-case (e.g., `'todo-list-app'`) |
-| Container | `'<app-name>-frontend'` for single-container apps (e.g., `'todo-list-frontend'`) |
-| Container image | `'<app-name>-image'` (e.g., `'todo-list-app-image'`) |
-| Database | Short name of the database engine: `'mysql'`, `'postgres'`, `'neo4j'` |
-| Database secret | `'dbsecret'` (always) |
+| Container | Service name in kebab-case; single-container apps use the app name (e.g., `'todo-list-app'`) |
+| Container image | `'<service-name>-image'` (e.g., `'todo-list-app-image'`) |
+| Data store | Engine short name in kebab-case (`'mysql'`, `'postgres'`, `'neo4j'`, `'redis'`); multiple of the same engine use the source store name |
+| Data store secret | `'<engine>-secret'` (e.g., `'mysql-secret'`) |
 
 ### Connection keys
 
 | Connection | Key |
 |---|---|
-| Database | `mysqldb`, `postgresdb`, `neo4jdb` (engine name + `db`) |
-| Container image | `containerImage` (always) |
+| Data store | Engine + role, lowercase: `mysqldb`, `postgresdb`, `neo4jdb`, `rediscache`. Multiple of the same engine: prefix with the source store name |
+| Container image | `containerImage` (one built image per container; the key is scoped to that container's `connections` map) |
 
 ### Other fixed values
 
 | Field | Value |
 |---|---|
-| Database secret USERNAME | Derived from source DB config (e.g., `MYSQL_USER`, `POSTGRES_USER`, connection string); fallback `<shortName>_user` (e.g., `todo_user`) |
-| Container key in `containers` map | Short name derived from app (e.g., `todo` for todo-list-app) |
-| Port key in `ports` map | `web` (always, for HTTP) |
+| Data store secret USERNAME | Derived from source DB config (e.g., `MYSQL_USER`, `POSTGRES_USER`, connection string); fallback `<shortName>_user` (e.g., `todo_user`) |
+| Data store `database` name | Derived from source (e.g., `MYSQL_DATABASE`/`POSTGRES_DB`, or the database segment of a connection string) |
+| Data store `version` | Derived from source (e.g., the image tag `mysql:8.0` → `'8.0'`) |
+| Container key in `containers` map | Service short name camelCase (single-container: derived from app, e.g., `todo`) |
+| Port key in `ports` map | `web` for the primary HTTP port; additional ports derive from protocol/use (`http`, `grpc`) |
 | `build.context` for containerImages | Directory containing the Dockerfile, relative to repo root (`'.'` if at root) |
 
 ### Extension order
@@ -156,11 +158,11 @@ Declare resources in this order (do NOT output this as code — it is only for y
 Rules:
 - Always start with `extension radius` then namespace-level extensions in the fixed order, then params.
 - Always declare exactly ONE `Applications.Core/applications@2023-10-01-preview` resource.
-- If the app has a Dockerfile but no published image, add a `Radius.Compute/containerImages` resource. Use a `param image string` for the image reference. The container must reference the image via `<shortName>Image.properties.image` and have a connection to `<shortName>Image.id`.
+- If the app has a Dockerfile but no published image, add a `Radius.Compute/containerImages` resource. Use a `param image string` for the image reference (one image param per built image; name additional params `<serviceName>Image`). The container must reference the image via `<serviceName>Image.properties.image` and have a connection to `<serviceName>Image.id`.
 - For database credentials, create a `Radius.Security/secrets` resource and reference it via `secretName` on the database resource.
 - Use `@secure() param` for passwords — NEVER hardcode them.
 - For each container service, emit exactly one `Radius.Compute/containers` resource.
-- For each backing data store, emit the matching `Radius.Data/*` resource.
+- For each backing data store, emit the matching `Radius.Data/*` resource with an engine/instance-derived symbolic name.
 - Only add `Radius.Compute/routes` if the app needs external ingress.
 
 ## Connections
@@ -175,7 +177,7 @@ Rules:
 
 Read [secrets-handling.md](references/secrets-handling.md).
 
-Database resources reference secrets via `secretName: dbSecret.name`. The username is derived from the source database config (e.g., `MYSQL_USER`/`POSTGRES_USER` or a connection string); if none is found, use `<shortName>_user`. Use `@secure() param` for the password.
+Each data store that needs credentials references its secret via `secretName: <engine>Secret.name` (e.g., `mysqlSecret.name`). The username is derived from the source database config (e.g., `MYSQL_USER`/`POSTGRES_USER` or a connection string); if none is found, use `<shortName>_user`. Use `@secure() param` for the password.
 
 ## Bicep Structure Rules
 
@@ -193,8 +195,10 @@ Before outputting, verify ALL:
 - [ ] `@secure() param password string` declared if database credentials are needed
 - [ ] `param image string` declared if building container images
 - [ ] Exactly one `Applications.Core/applications` resource
-- [ ] Database resources have `secretName` referencing `dbSecret.name`
+- [ ] Each data store needing credentials references its secret via `secretName: <engine>Secret.name`
 - [ ] Secret USERNAME is derived from source DB config (fallback `<shortName>_user`)
+- [ ] Data store `database` name and `version` are derived from source, not hardcoded
+- [ ] Symbolic names for data stores/secrets are engine-derived (no fixed `database`/`dbSecret`), unique per instance
 - [ ] `connections` is a top-level property under `properties`, NOT inside `containers`
 - [ ] `connections` is an object map, NOT an array
 - [ ] Container images use `param image string`, not hardcoded
@@ -212,6 +216,9 @@ Before outputting, verify ALL:
 - Do NOT place `connections` inside `containers`.
 - Do NOT include comments in generated Bicep.
 - Do NOT use a bare runtime base image when the app has a Dockerfile.
+- Do NOT reuse a single symbolic name (like `database`/`dbSecret`) for multiple data stores — derive engine/role-based names (`mysqlDb`, `redisCache`, `mysqlSecret`) so multiple stores never collide.
+- Do NOT hardcode a data store's `database` name or `version` — derive them from the source.
+- Do NOT assume a single container is a "frontend" — name it from the app/service, not `-frontend`.
 - Do NOT use `extension containerImages` or `extension containers` — use `extension radiusCompute`.
 - Do NOT generate or output bicepconfig.json.
 - ALWAYS create `Radius.Security/secrets` for database credentials.

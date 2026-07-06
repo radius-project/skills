@@ -5,6 +5,7 @@
 - NEVER hardcode passwords, tokens, or keys in `app.bicep`.
 - For secrets passed at deploy time, use `@secure() param` and pass via `rad deploy -p`.
 - ALWAYS create a `Radius.Security/secrets` resource for database credentials (username, password).
+- Create one secret per data store that needs credentials; symbolic `<engine>Secret`, name `'<engine>-secret'` (e.g., `mysqlSecret` / `'mysql-secret'`).
 - Reference the secret from the database resource via `secretName: mySecret.name`.
 - Derive the database USERNAME from the source config (`MYSQL_USER`, `POSTGRES_USER`, connection string); if absent, use `<shortName>_user`. Never invent a username unrelated to the source.
 - Use `Radius.Security/secrets` for any app-specific secrets (API keys, TLS certs) as well.
@@ -15,8 +16,8 @@
 @secure()
 param password string
 
-resource dbSecret 'Radius.Security/secrets@2025-08-01-preview' = {
-  name: 'dbsecret'
+resource mysqlSecret 'Radius.Security/secrets@2025-08-01-preview' = {
+  name: 'mysql-secret'
   properties: {
     environment: environment
     application: app.id
@@ -31,14 +32,14 @@ resource dbSecret 'Radius.Security/secrets@2025-08-01-preview' = {
   }
 }
 
-resource database 'Radius.Data/mySqlDatabases@2025-08-01-preview' = {
+resource mysqlDb 'Radius.Data/mySqlDatabases@2025-08-01-preview' = {
   name: 'mysql'
   properties: {
     environment: environment
     application: app.id
-    database: 'todos'
-    version: '8.0'
-    secretName: dbSecret.name
+    database: 'todos'      // derived from source (e.g. MYSQL_DATABASE)
+    version: '8.0'         // derived from source (e.g. image tag mysql:8.0)
+    secretName: mysqlSecret.name
   }
 }
 ```
@@ -69,5 +70,5 @@ resource appSecrets 'Radius.Security/secrets@2025-08-01-preview' = {
 
 - Do NOT write `password: 'mysecretpassword'` — always use `@secure() param`
 - Do NOT skip creating `Radius.Security/secrets` for database credentials
-- Do NOT forget to add `secretName: dbSecret.name` on the database resource
+- Do NOT forget to add `secretName: <engine>Secret.name` (e.g., `mysqlSecret.name`) on the database resource
 - Keys in `data` are UPPERCASE (`USERNAME`, `PASSWORD`, `API_KEY`)

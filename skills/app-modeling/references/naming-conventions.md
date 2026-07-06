@@ -3,6 +3,8 @@
 | Element | Convention | Example |
 |---|---|---|
 | Bicep symbolic name | camelCase, descriptive | `todoApp`, `mysqlDatabase`, `webContainer` |
+| Data store symbolic name | `<engine>` + role suffix, camelCase | `mysqlDb`, `postgresDb`, `redisCache` |
+| Secret symbolic name | `<engine>Secret`, camelCase | `mysqlSecret`, `postgresSecret` |
 | Resource `name` property | kebab-case, matches app/repo name | `'todo-list-app'`, `'my-database'` |
 | Connection keys | camelCase, short, describes the target | `mysqldb`, `redis`, `storage`, `containerImage` |
 | Application name | kebab-case, matches repository name | `'todo-list-app'` |

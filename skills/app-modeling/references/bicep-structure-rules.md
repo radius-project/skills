@@ -38,7 +38,7 @@ resource myContainer 'Radius.Compute/containers@2025-08-01-preview' = {
     }
     connections: {                    // TOP-LEVEL — sibling of "containers"
       mysqldb: {                     // object map, NOT array
-        source: database.id
+        source: mysqlDb.id
       }
       containerImage: {
         source: myImage.id
@@ -56,7 +56,7 @@ Rules:
 - `disableDefaultEnvVars` goes on the connection entry, NOT on the container
 - Port property is `containerPort`, NOT `port`
 - `env` values use `{ value: 'string' }` syntax, NOT bare strings
-- Do NOT reference readOnly properties of other resources (e.g. `database.properties.host`)
+- Do NOT reference readOnly properties of other resources (e.g. `mysqlDb.properties.host`)
 
 ## Radius.Compute/containerImages structure
 
@@ -84,24 +84,27 @@ Rules:
 - Container must have a connection to `myImage.id` for dependency ordering
 - `image` must be lowercase
 - `build.context` is the directory containing the Dockerfile, relative to the repository root (`'.'` if the Dockerfile is at the repo root)
+- One `param image string` per built image; for multiple built images, use `param <serviceName>Image string` for each
 
 ## Radius.Data/* structure
 
 ```bicep
-resource database 'Radius.Data/mySqlDatabases@2025-08-01-preview' = {
+resource mysqlDb 'Radius.Data/mySqlDatabases@2025-08-01-preview' = {
   name: 'mysql'
   properties: {
     environment: environment
     application: app.id
-    database: 'todos'
-    version: '8.0'
-    secretName: dbSecret.name
+    database: 'todos'      // derived from source (e.g. MYSQL_DATABASE)
+    version: '8.0'         // derived from source (e.g. image tag mysql:8.0)
+    secretName: mysqlSecret.name
   }
 }
 ```
 
 Rules:
 - Uses `extension radiusData` (NOT individual type extensions)
+- Symbolic name and `secretName` are engine/instance-derived (`mysqlDb`/`mysqlSecret`), NOT fixed — so multiple data stores never collide
+- `database` and `version` are derived from source (compose env, connection string, image tag) — do NOT hardcode
 - `secretName` references a `Radius.Security/secrets` resource for credentials
 - Do NOT set readOnly properties (`host`, `port`) — these are output by the recipe
 
@@ -111,8 +114,8 @@ Rules:
 @secure()
 param password string
 
-resource dbSecret 'Radius.Security/secrets@2025-08-01-preview' = {
-  name: 'dbsecret'
+resource mysqlSecret 'Radius.Security/secrets@2025-08-01-preview' = {
+  name: 'mysql-secret'
   properties: {
     environment: environment
     application: app.id
@@ -130,6 +133,7 @@ resource dbSecret 'Radius.Security/secrets@2025-08-01-preview' = {
 
 Rules:
 - Uses `extension radiusSecurity`
+- Create one secret per data store that needs credentials; symbolic `<engine>Secret`, name `'<engine>-secret'`
 - ALWAYS create for database credentials — referenced via `secretName` on the database resource
 - NEVER hardcode passwords — use `@secure() param`
 - `data` is an object map, NOT an array

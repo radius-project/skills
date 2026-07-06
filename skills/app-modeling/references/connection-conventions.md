@@ -25,7 +25,7 @@ Connection named `mysqldb` to `Radius.Data/mySqlDatabases`:
 
 | Variable | Example Value |
 |----------|---------------|
-| `CONNECTION_MYSQLDB_PROPERTIES` | `{"database":"todos","username":"root","password":"abc123","version":"8.0","host":"mysql-svc.default.svc.cluster.local","port":"3306"}` |
+| `CONNECTION_MYSQLDB_PROPERTIES` | `{"database":"todos","username":"todo_user","password":"abc123","version":"8.0","host":"mysql-svc.default.svc.cluster.local","port":"3306"}` |
 | `CONNECTION_MYSQLDB_ID` | `/planes/radius/local/.../Radius.Data/mySqlDatabases/mysql` |
 | `CONNECTION_MYSQLDB_NAME` | `mysqldb` |
 | `CONNECTION_MYSQLDB_TYPE` | `Radius.Data/mySqlDatabases` |

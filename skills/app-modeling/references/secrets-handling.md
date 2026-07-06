@@ -8,6 +8,7 @@
 - Create one secret per data store that needs credentials; symbolic `<engine>Secret`, name `'<engine>-secret'` (e.g., `mysqlSecret` / `'mysql-secret'`).
 - Reference the secret from the database resource via `secretName: mySecret.name`.
 - Derive the database USERNAME from the source config (`MYSQL_USER`, `POSTGRES_USER`, connection string); if absent, use `<shortName>_user`. Never invent a username unrelated to the source.
+- NEVER use a superuser/admin account (`root`, `admin`, `sa`, `postgres`, `mysql`) as the USERNAME. The secret provisions a dedicated, least-privilege app user, so if the source connects as a superuser, fall back to `<shortName>_user`.
 - Use `Radius.Security/secrets` for any app-specific secrets (API keys, TLS certs) as well.
 
 ## Database credentials pattern
@@ -70,5 +71,6 @@ resource appSecrets 'Radius.Security/secrets@2025-08-01-preview' = {
 
 - Do NOT write `password: 'mysecretpassword'` — always use `@secure() param`
 - Do NOT skip creating `Radius.Security/secrets` for database credentials
+- Do NOT use a superuser/admin account (`root`, `admin`, `sa`, `postgres`, `mysql`) as the USERNAME — fall back to `<shortName>_user`
 - Do NOT forget to add `secretName: <engine>Secret.name` (e.g., `mysqlSecret.name`) on the database resource
 - Keys in `data` are UPPERCASE (`USERNAME`, `PASSWORD`, `API_KEY`)

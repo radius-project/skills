@@ -87,7 +87,7 @@ These rules eliminate ambiguity. Apply them exactly.
 
 | Field | Value |
 |---|---|
-| Data store secret USERNAME | Derived from source DB config (e.g., `MYSQL_USER`, `POSTGRES_USER`, connection string); fallback `<shortName>_user` (e.g., `todo_user`) |
+| Data store secret USERNAME | Derived from source DB config (e.g., `MYSQL_USER`, `POSTGRES_USER`, connection string); NEVER a superuser/admin account (`root`, `admin`, `sa`, `postgres`, `mysql`) — if the source uses one, fall back to `<shortName>_user` (e.g., `todo_user`) |
 | Data store `database` name | Derived from source (e.g., `MYSQL_DATABASE`/`POSTGRES_DB`, or the database segment of a connection string) |
 | Data store `version` | Derived from source (e.g., the image tag `mysql:8.0` → `'8.0'`) |
 | Container key in `containers` map | Service short name camelCase (single-container: derived from app, e.g., `todo`) |
@@ -177,7 +177,7 @@ Rules:
 
 Read [secrets-handling.md](references/secrets-handling.md).
 
-Each data store that needs credentials references its secret via `secretName: <engine>Secret.name` (e.g., `mysqlSecret.name`). The username is derived from the source database config (e.g., `MYSQL_USER`/`POSTGRES_USER` or a connection string); if none is found, use `<shortName>_user`. Use `@secure() param` for the password.
+Each data store that needs credentials references its secret via `secretName: <engine>Secret.name` (e.g., `mysqlSecret.name`). The username is derived from the source database config (e.g., `MYSQL_USER`/`POSTGRES_USER` or a connection string), but NEVER a superuser/admin account (`root`, `admin`, `sa`, `postgres`, `mysql`); if the source uses one or none is found, use `<shortName>_user`. Use `@secure() param` for the password.
 
 ## Bicep Structure Rules
 
@@ -197,6 +197,7 @@ Before outputting, verify ALL:
 - [ ] Exactly one `Applications.Core/applications` resource
 - [ ] Each data store needing credentials references its secret via `secretName: <engine>Secret.name`
 - [ ] Secret USERNAME is derived from source DB config (fallback `<shortName>_user`)
+- [ ] Secret USERNAME is NOT a superuser/admin account (`root`, `admin`, `sa`, `postgres`, `mysql`)
 - [ ] Data store `database` name and `version` are derived from source, not hardcoded
 - [ ] Symbolic names for data stores/secrets are engine-derived (no fixed `database`/`dbSecret`), unique per instance
 - [ ] `connections` is a top-level property under `properties`, NOT inside `containers`
@@ -218,6 +219,7 @@ Before outputting, verify ALL:
 - Do NOT use a bare runtime base image when the app has a Dockerfile.
 - Do NOT reuse a single symbolic name (like `database`/`dbSecret`) for multiple data stores — derive engine/role-based names (`mysqlDb`, `redisCache`, `mysqlSecret`) so multiple stores never collide.
 - Do NOT hardcode a data store's `database` name or `version` — derive them from the source.
+- Do NOT use a superuser/admin account (`root`, `admin`, `sa`, `postgres`, `mysql`) as the data store USERNAME — the secret provisions a dedicated app user; fall back to `<shortName>_user`.
 - Do NOT assume a single container is a "frontend" — name it from the app/service, not `-frontend`.
 - Do NOT use `extension containerImages` or `extension containers` — use `extension radiusCompute`.
 - Do NOT generate or output bicepconfig.json.

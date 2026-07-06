@@ -139,6 +139,7 @@ Rules:
 - `data` is an object map, NOT an array
 - Keys in `data` are UPPERCASE (`USERNAME`, `PASSWORD`)
 - `USERNAME` is derived from the source DB config (`MYSQL_USER`, `POSTGRES_USER`, connection string); fallback `<shortName>_user`
+- `USERNAME` is NEVER a superuser/admin account (`root`, `admin`, `sa`, `postgres`, `mysql`) — fall back to `<shortName>_user` if the source uses one
 
 ## Radius.Compute/routes structure
 

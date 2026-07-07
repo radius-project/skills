@@ -94,13 +94,12 @@ These rules eliminate ambiguity. Apply them exactly.
 | Port key in `ports` map | `web` for the primary HTTP port; additional ports derive from protocol/use (`http`, `grpc`) |
 | `build.context` for containerImages | Directory containing the Dockerfile, relative to repo root (`'.'` if at root) |
 
-### Extension order
+### Extension
 
-Always declare extensions in this exact order:
+Declare a single extension:
 1. `extension radius`
-2. `extension radiusCompute`
-3. `extension radiusSecurity`
-4. `extension radiusData`
+
+All Radius types (`Radius.Core/*`, `Radius.Compute/*`, `Radius.Data/*`, `Radius.Messaging/*`, `Radius.AI/*`, `Radius.Security/*`) are provided by this one extension. Do NOT declare per-namespace or per-type extensions.
 
 ## Resource Type Resolution
 
@@ -108,15 +107,15 @@ Always declare extensions in this exact order:
 
 | Need | Resource Type | API Version |
 |---|---|---|
-| Application grouping | `Applications.Core/applications` | `2023-10-01-preview` |
+| Application grouping | `Radius.Core/applications` | `2025-08-01-preview` |
 
-`Applications.Core/applications` is built into Radius. It uses `extension radius` — no additional extension needed. Its API version is `2023-10-01-preview`. Do NOT use `Radius.Core/applications` — it does not exist.
+`Radius.Core/applications` is built into the `radius` extension — there is no schema file for it in `resource-types-contrib`. Do NOT use `Applications.Core/applications` — the model has moved to `Radius.Core/applications`.
 
 ### Extensible types (from `radius-project/resource-types-contrib`)
 
 Resolve each type's schema at runtime from the `radius-project/resource-types-contrib` repository. Do NOT hardcode a file path — derive it from the resource type name using the repo convention:
 
-- Category = the segment after `Radius.` in the namespace (`Radius.Compute` → `Compute`, `Radius.Data` → `Data`, `Radius.Security` → `Security`)
+- Category = the segment after `Radius.` in the namespace (`Radius.Compute` → `Compute`, `Radius.Data` → `Data`, `Radius.Messaging` → `Messaging`, `Radius.AI` → `AI`, `Radius.Security` → `Security`)
 - Schema path = `<Category>/<typeName>/<typeName>.yaml` (e.g., `Radius.Data/mySqlDatabases` → `Data/mySqlDatabases/mySqlDatabases.yaml`)
 
 Read the schema file to get the exact property names, types, and API version. Use the API version declared in the schema (currently `2025-08-01-preview` for these types) rather than assuming a fixed value.
@@ -130,41 +129,41 @@ The following is the COMPLETE allow-list of types this skill may emit:
 | MySQL | `Radius.Data/mySqlDatabases` |
 | PostgreSQL | `Radius.Data/postgreSqlDatabases` |
 | Neo4j | `Radius.Data/neo4jDatabases` |
+| MongoDB | `Radius.Data/mongoDatabases` |
+| Redis (cache) | `Radius.Data/redisCaches` |
+| SQL Server | `Radius.Data/sqlServerDatabases` |
+| Kafka (event streaming) | `Radius.Messaging/kafka` |
+| RabbitMQ (message queue) | `Radius.Messaging/rabbitMQ` |
+| AI model endpoint | `Radius.AI/models` |
+| AI search | `Radius.AI/search` |
 | Persistent storage | `Radius.Compute/persistentVolumes` |
 | External ingress | `Radius.Compute/routes` |
 | Secrets | `Radius.Security/secrets` |
 
 Do NOT use any type not listed above. Do NOT invent properties.
 
-## Extension naming
+## Extension
 
-Bicep extensions are named by namespace, NOT by individual type:
+A single `extension radius` provides every Radius type. There are no per-namespace or per-type extensions.
 
-| Namespace | Extension name |
-|---|---|
-| `Applications.Core` | `radius` |
-| `Radius.Compute` | `radiusCompute` |
-| `Radius.Data` | `radiusData` |
-| `Radius.Security` | `radiusSecurity` |
-
-Use `extension radiusCompute` — NOT `extension containerImages` or `extension containers`.
+Use `extension radius` — NOT `extension radiusCompute`, `extension containers`, `extension kafka`, or any other per-type extension.
 
 ## app.bicep Structure (mandatory order)
 
 Declare resources in this order (do NOT output this as code — it is only for your reference):
 
-1. Extensions: `radius`, then `radiusCompute`, `radiusSecurity`, `radiusData` (only those needed)
+1. Extension: `extension radius` (single, covers all Radius types)
 2. Params: `environment`, then `@secure() password` if needed, then `@description(...) image` if needed
-3. Application resource (`Applications.Core/applications@2023-10-01-preview`) — always exactly one
-4. Data / infrastructure resources (databases, caches)
+3. Application resource (`Radius.Core/applications@2025-08-01-preview`) — always exactly one
+4. Data / infrastructure resources (databases, caches, message brokers, AI services)
 5. Secret resources (database credentials, API keys)
 6. Container image resources (if building from Dockerfile)
 7. Container resources (with connections to images and infra)
 8. Routes (only if external ingress needed)
 
 Rules:
-- Always start with `extension radius` then namespace-level extensions in the fixed order, then params.
-- Always declare exactly ONE `Applications.Core/applications@2023-10-01-preview` resource.
+- Always start with the single `extension radius`, then params.
+- Always declare exactly ONE `Radius.Core/applications@2025-08-01-preview` resource.
 - If the app has a Dockerfile but no published image, add a `Radius.Compute/containerImages` resource. Use a `param image string` for the image reference (one image param per built image; name additional params `<serviceName>Image`). The container must reference the image via `<serviceName>Image.properties.image` and have a connection to `<serviceName>Image.id`.
 - For database credentials, create a `Radius.Security/secrets` resource and reference it via `secretName` on the database resource.
 - Use `@secure() param` for passwords — NEVER hardcode them.
@@ -193,15 +192,15 @@ Read [bicep-structure-rules.md](references/bicep-structure-rules.md) for all str
 ## Validation Checklist
 
 Before outputting, verify ALL:
-- [ ] Application resource uses `Applications.Core/applications@2023-10-01-preview`
+- [ ] Application resource uses `Radius.Core/applications@2025-08-01-preview`
 - [ ] Every `Radius.*` type matches a YAML schema in `resource-types-contrib`
-- [ ] Each `Radius.*` type uses the API version from its schema; `Applications.Core` uses `2023-10-01-preview`
-- [ ] Extensions are in order: `radius`, `radiusCompute`, `radiusSecurity`, `radiusData`
+- [ ] Each `Radius.*` type uses the API version from its schema (currently `2025-08-01-preview`)
+- [ ] A single `extension radius` is declared (no per-namespace or per-type extensions)
 - [ ] All names follow the Deterministic Naming Rules exactly
 - [ ] `param environment string` is declared
 - [ ] `@secure() param password string` declared if database credentials are needed
 - [ ] `param image string` declared if building container images
-- [ ] Exactly one `Applications.Core/applications` resource
+- [ ] Exactly one `Radius.Core/applications` resource
 - [ ] Each data store needing credentials references its secret via `secretName: <engine>Secret.name`
 - [ ] Secret USERNAME is derived from source DB config (fallback `<shortName>_user`)
 - [ ] Secret USERNAME is NOT a superuser/admin account (`root`, `admin`, `sa`, `postgres`, `mysql`)
@@ -217,7 +216,7 @@ Before outputting, verify ALL:
 
 ## Guardrails
 
-- Use `Applications.Core/applications@2023-10-01-preview` — NOT `Radius.Core/applications`.
+- Use `Radius.Core/applications@2025-08-01-preview` — NOT `Applications.Core/applications`.
 - Do NOT guess a type's schema, properties, or API version — resolve them from `resource-types-contrib` at the derived path. If a type the app needs cannot be resolved, STOP and report it.
 - Do NOT set readOnly properties.
 - Do NOT reference readOnly properties of other resources in Bicep.
@@ -229,7 +228,7 @@ Before outputting, verify ALL:
 - Do NOT hardcode a data store's `database` name or `version` — derive them from the source.
 - Do NOT use a superuser/admin account (`root`, `admin`, `sa`, `postgres`, `mysql`) as the data store USERNAME — the secret provisions a dedicated app user; fall back to `<shortName>_user`.
 - Do NOT assume a single container is a "frontend" — name it from the app/service, not `-frontend`.
-- Do NOT use `extension containerImages` or `extension containers` — use `extension radiusCompute`.
+- Use a single `extension radius` for all types — NOT `extension radiusCompute`, `extension containers`, or any per-type extension.
 - Do NOT generate or output bicepconfig.json.
 - ALWAYS create `Radius.Security/secrets` for database credentials.
 - ALWAYS use `@secure() param` for passwords.

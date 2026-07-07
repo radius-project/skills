@@ -15,7 +15,7 @@
 
 | Source component | Radius Resource Type | API Version |
 |---|---|---|
-| Application grouping | `Applications.Core/applications` | `2023-10-01-preview` |
+| Application grouping | `Radius.Core/applications` | `2025-08-01-preview` |
 | Dockerfile (build image) | `Radius.Compute/containerImages` | `2025-08-01-preview` |
 | Node.js container | `Radius.Compute/containers` | `2025-08-01-preview` |
 | MySQL 8.0 | `Radius.Data/mySqlDatabases` | `2025-08-01-preview` |
@@ -23,7 +23,7 @@
 
 ## Key decisions explained
 
-1. **`Applications.Core/applications@2023-10-01-preview`** — the application resource is a built-in Radius type, NOT from `resource-types-contrib`. It uses the older API version.
+1. **`Radius.Core/applications@2025-08-01-preview`** — the application resource is a built-in Radius type (provided by the `radius` extension), NOT from `resource-types-contrib`.
 2. **`containerImages` resource** — the app has a Dockerfile but no published image. The `containerImages` resource builds and pushes it.
 3. **`param image string`** — image reference is parameterized, not hardcoded.
 4. **`build.context`** — the directory containing the Dockerfile, relative to the repo root (`'.'` when the Dockerfile is at the repo root).

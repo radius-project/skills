@@ -7,12 +7,12 @@ Classify the application into exactly ONE of these patterns. This determines the
 - **Resources**: `Radius.Compute/containers` + optional `Radius.Compute/routes` for external ingress
 
 ## Pattern B: Stateful / Database-Backed Application
-- **Signals**: HTTP server + database client library (mysql, mysql2, pg, sqlite3, mongoose, sequelize, prisma, etc.)
-- **Resources**: `Radius.Compute/containers` + `Radius.Data/*` (matching database type) + `Radius.Security/secrets` (for DB credentials) + optional `Radius.Compute/routes`
+- **Signals**: HTTP server + database client library (mysql, mysql2, pg, sqlite3, mongoose, sequelize, prisma, redis, mssql, etc.)
+- **Resources**: `Radius.Compute/containers` + `Radius.Data/*` (matching engine: `mySqlDatabases`, `postgreSqlDatabases`, `mongoDatabases`, `redisCaches`, `neo4jDatabases`, `sqlServerDatabases`) + `Radius.Security/secrets` (for DB credentials) + optional `Radius.Compute/routes`
 
 ## Pattern C: Event-Driven Application
 - **Signals**: Message queue client (amqplib, kafkajs, sqs-consumer, bull, etc.), pub/sub patterns
-- **Resources**: `Radius.Compute/containers` + messaging resource type
+- **Resources**: `Radius.Compute/containers` + messaging resource type (`Radius.Messaging/kafka` or `Radius.Messaging/rabbitMQ`)
 
 ## Pattern D: Batch Job
 - **Signals**: No HTTP server, runs a task and exits, cron-like behavior

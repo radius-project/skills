@@ -4,14 +4,13 @@ These rules apply to ALL generated app.bicep files. Read the resource type YAML 
 
 ## General
 
-- `extension radius` is always the first line
-- Namespace-level extensions: `radiusCompute`, `radiusData`, `radiusSecurity` — declared only if those namespaces are used
-- Do NOT use `extension containerImages` or `extension containers` — use `extension radiusCompute`
+- `extension radius` is the only extension line, and it comes first
+- A single `extension radius` provides every Radius type — do NOT declare per-namespace or per-type extensions (`radiusCompute`, `containers`, `kafka`, etc.)
 - `param environment string` always declared
 - `@secure() param password string` declared if database credentials are needed
 - `param image string` declared if building container images
-- Exactly ONE `Applications.Core/applications@2023-10-01-preview` resource
-- The `@<apiVersion>` shown in the examples below (e.g. `2025-08-01-preview`) is illustrative — use the API version from each `Radius.*` type's schema; `Applications.Core/applications` is fixed at `2023-10-01-preview`
+- Exactly ONE `Radius.Core/applications@2025-08-01-preview` resource
+- The `@<apiVersion>` shown in the examples below (e.g. `2025-08-01-preview`) is illustrative — use the API version from each type's schema
 - All output files go in `.radius/` directory
 
 ## Radius.Compute/containers structure
@@ -79,7 +78,7 @@ resource myImage 'Radius.Compute/containerImages@2025-08-01-preview' = {
 ```
 
 Rules:
-- Uses `extension radiusCompute` (NOT `extension containerImages`)
+- Uses the single `extension radius` (NOT `extension containerImages` or `extension radiusCompute`)
 - Image reference comes from `param image string` — NOT hardcoded
 - Container must reference image as `myImage.properties.image`
 - Container must have a connection to `myImage.id` for dependency ordering
@@ -103,7 +102,7 @@ resource mysqlDb 'Radius.Data/mySqlDatabases@2025-08-01-preview' = {
 ```
 
 Rules:
-- Uses `extension radiusData` (NOT individual type extensions)
+- Uses the single `extension radius` (NOT individual type or namespace extensions)
 - Symbolic name and `secretName` are engine/instance-derived (`mysqlDb`/`mysqlSecret`), NOT fixed — so multiple data stores never collide
 - `database` and `version` are derived from source (compose env, connection string, image tag) — do NOT hardcode
 - `secretName` references a `Radius.Security/secrets` resource for credentials
@@ -133,7 +132,7 @@ resource mysqlSecret 'Radius.Security/secrets@2025-08-01-preview' = {
 ```
 
 Rules:
-- Uses `extension radiusSecurity`
+- Uses the single `extension radius`
 - Create one secret per data store that needs credentials; symbolic `<engine>Secret`, name `'<engine>-secret'`
 - ALWAYS create for database credentials — referenced via `secretName` on the database resource
 - NEVER hardcode passwords — use `@secure() param`

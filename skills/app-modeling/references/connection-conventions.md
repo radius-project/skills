@@ -32,9 +32,7 @@ Connection named `mysqldb` to `Radius.Data/mySqlDatabases`:
 
 ## Reading Connection Properties
 
-Parse the `CONNECTION_<NAME>_PROPERTIES` JSON blob to read a property:
-
-### Node.js
+Parse the `CONNECTION_<NAME>_PROPERTIES` JSON blob to read a property (Node.js example):
 
 ```javascript
 function getConnProp(connName, prop) {
@@ -49,39 +47,7 @@ function getConnProp(connName, prop) {
 }
 ```
 
-### Go
-
-```go
-func getConnProp(connName, prop string) string {
-    propsJSON := os.Getenv("CONNECTION_" + connName + "_PROPERTIES")
-    if propsJSON == "" {
-        return ""
-    }
-    var props map[string]interface{}
-    if err := json.Unmarshal([]byte(propsJSON), &props); err == nil {
-        if val, ok := props[strings.ToLower(prop)]; ok {
-            return fmt.Sprintf("%v", val)
-        }
-    }
-    return ""
-}
-```
-
-### Python
-
-```python
-import json, os
-
-def get_conn_prop(conn_name: str, prop: str) -> str:
-    props_json = os.getenv(f"CONNECTION_{conn_name}_PROPERTIES", "")
-    if not props_json:
-        return ""
-    try:
-        props = json.loads(props_json)
-        return str(props.get(prop.lower(), ""))
-    except json.JSONDecodeError:
-        return ""
-```
+The same pattern applies in any language: read `CONNECTION_<NAME>_PROPERTIES`, JSON-parse it, and look up the lowercase property key.
 
 ## Valid Bicep structure
 

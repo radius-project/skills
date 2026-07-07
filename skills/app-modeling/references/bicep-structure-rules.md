@@ -4,8 +4,7 @@ These rules apply to ALL generated app.bicep files. Read the resource type YAML 
 
 ## General
 
-- `extension radius` is the only extension line, and it comes first
-- A single `extension radius` provides every Radius type — do NOT declare per-namespace or per-type extensions (`radiusCompute`, `containers`, `kafka`, etc.)
+- `extension radius` is the only extension line and comes first (it provides every Radius type; no per-namespace or per-type extensions)
 - `param environment string` always declared
 - `@secure() param password string` declared if database credentials are needed
 - `param image string` declared if building container images
@@ -78,7 +77,6 @@ resource myImage 'Radius.Compute/containerImages@2025-08-01-preview' = {
 ```
 
 Rules:
-- Uses the single `extension radius` (NOT `extension containerImages` or `extension radiusCompute`)
 - Image reference comes from `param image string` — NOT hardcoded
 - Container must reference image as `myImage.properties.image`
 - Container must have a connection to `myImage.id` for dependency ordering
@@ -102,7 +100,6 @@ resource mysqlDb 'Radius.Data/mySqlDatabases@2025-08-01-preview' = {
 ```
 
 Rules:
-- Uses the single `extension radius` (NOT individual type or namespace extensions)
 - Symbolic name and `secretName` are engine/instance-derived (`mysqlDb`/`mysqlSecret`), NOT fixed — so multiple data stores never collide
 - `database` and `version` are derived from source (compose env, connection string, image tag) — do NOT hardcode
 - `secretName` references a `Radius.Security/secrets` resource for credentials
@@ -132,7 +129,6 @@ resource mysqlSecret 'Radius.Security/secrets@2025-08-01-preview' = {
 ```
 
 Rules:
-- Uses the single `extension radius`
 - Create one secret per data store that needs credentials; symbolic `<engine>Secret`, name `'<engine>-secret'`
 - ALWAYS create for database credentials — referenced via `secretName` on the database resource
 - NEVER hardcode passwords — use `@secure() param`

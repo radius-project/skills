@@ -11,6 +11,7 @@ These rules apply to ALL generated app.bicep files. Read the resource type YAML 
 - `@secure() param password string` declared if database credentials are needed
 - `param image string` declared if building container images
 - Exactly ONE `Applications.Core/applications@2023-10-01-preview` resource
+- The `@<apiVersion>` shown in the examples below (e.g. `2025-08-01-preview`) is illustrative — use the API version from each `Radius.*` type's schema; `Applications.Core/applications` is fixed at `2023-10-01-preview`
 - All output files go in `.radius/` directory
 
 ## Radius.Compute/containers structure

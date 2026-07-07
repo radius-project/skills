@@ -43,7 +43,7 @@ Internally, before producing the output above:
 
 1. Analyze the source repository (package manifest, Dockerfile/compose, entry point, persistence layer, env vars).
 2. Classify into exactly one architecture pattern. Read [architecture-patterns.md](references/architecture-patterns.md).
-3. Resolve resource types from `radius-project/resource-types-contrib` — MUST match existing schemas. Read only the relevant YAML schema files.
+3. Resolve the resource types the app needs from `radius-project/resource-types-contrib` — MUST match existing schemas. Derive each schema path from the type name (see Resource Type Resolution) and read only those files. If a needed type's schema is not at the derived path, search the repo for `<typeName>.yaml`; if it still cannot be resolved, STOP and report the missing type instead of guessing. Types the app does not use do not need to resolve.
 4. Read [bicep-structure-rules.md](references/bicep-structure-rules.md) for correct Bicep structure.
 5. Read [naming-conventions.md](references/naming-conventions.md) and apply the Deterministic Naming Rules below.
 6. Read [secrets-handling.md](references/secrets-handling.md).
@@ -114,20 +114,27 @@ Always declare extensions in this exact order:
 
 ### Extensible types (from `radius-project/resource-types-contrib`)
 
-Read the resource type YAML schema files from the `radius-project/resource-types-contrib` repository. Each resource type has a YAML file at `<Category>/<typeName>/<typeName>.yaml`.
+Resolve each type's schema at runtime from the `radius-project/resource-types-contrib` repository. Do NOT hardcode a file path — derive it from the resource type name using the repo convention:
 
-| Need | Resource Type | Schema file in `resource-types-contrib` |
-|---|---|---|
-| Container images (build from Dockerfile) | `Radius.Compute/containerImages` | `Compute/containerImages/containerImages.yaml` (PR #126 — read from `willdavsmith:containerimages-v2` branch until merged) |
-| Containers | `Radius.Compute/containers` | `Compute/containers/containers.yaml` |
-| MySQL | `Radius.Data/mySqlDatabases` | `Data/mySqlDatabases/mySqlDatabases.yaml` |
-| PostgreSQL | `Radius.Data/postgreSqlDatabases` | `Data/postgreSqlDatabases/postgreSqlDatabases.yaml` |
-| Neo4j | `Radius.Data/neo4jDatabases` | `Data/neo4jDatabases/neo4jDatabases.yaml` |
-| Persistent storage | `Radius.Compute/persistentVolumes` | `Compute/persistentVolumes/persistentVolumes.yaml` |
-| External ingress | `Radius.Compute/routes` | `Compute/routes/routes.yaml` |
-| Secrets | `Radius.Security/secrets` | `Security/secrets/secrets.yaml` |
+- Category = the segment after `Radius.` in the namespace (`Radius.Compute` → `Compute`, `Radius.Data` → `Data`, `Radius.Security` → `Security`)
+- Schema path = `<Category>/<typeName>/<typeName>.yaml` (e.g., `Radius.Data/mySqlDatabases` → `Data/mySqlDatabases/mySqlDatabases.yaml`)
 
-This is the COMPLETE list. Do NOT use any type not listed above. Do NOT invent properties. All extensible types use API version `2025-08-01-preview`.
+Read the schema file to get the exact property names, types, and API version. Use the API version declared in the schema (currently `2025-08-01-preview` for these types) rather than assuming a fixed value.
+
+The following is the COMPLETE allow-list of types this skill may emit:
+
+| Need | Resource Type |
+|---|---|
+| Container images (build from Dockerfile) | `Radius.Compute/containerImages` |
+| Containers | `Radius.Compute/containers` |
+| MySQL | `Radius.Data/mySqlDatabases` |
+| PostgreSQL | `Radius.Data/postgreSqlDatabases` |
+| Neo4j | `Radius.Data/neo4jDatabases` |
+| Persistent storage | `Radius.Compute/persistentVolumes` |
+| External ingress | `Radius.Compute/routes` |
+| Secrets | `Radius.Security/secrets` |
+
+Do NOT use any type not listed above. Do NOT invent properties.
 
 ## Extension naming
 
@@ -188,7 +195,7 @@ Read [bicep-structure-rules.md](references/bicep-structure-rules.md) for all str
 Before outputting, verify ALL:
 - [ ] Application resource uses `Applications.Core/applications@2023-10-01-preview`
 - [ ] Every `Radius.*` type matches a YAML schema in `resource-types-contrib`
-- [ ] `Radius.*` types use `2025-08-01-preview`; `Applications.Core` uses `2023-10-01-preview`
+- [ ] Each `Radius.*` type uses the API version from its schema; `Applications.Core` uses `2023-10-01-preview`
 - [ ] Extensions are in order: `radius`, `radiusCompute`, `radiusSecurity`, `radiusData`
 - [ ] All names follow the Deterministic Naming Rules exactly
 - [ ] `param environment string` is declared
@@ -211,6 +218,7 @@ Before outputting, verify ALL:
 ## Guardrails
 
 - Use `Applications.Core/applications@2023-10-01-preview` — NOT `Radius.Core/applications`.
+- Do NOT guess a type's schema, properties, or API version — resolve them from `resource-types-contrib` at the derived path. If a type the app needs cannot be resolved, STOP and report it.
 - Do NOT set readOnly properties.
 - Do NOT reference readOnly properties of other resources in Bicep.
 - Do NOT use array syntax where the schema specifies object maps.

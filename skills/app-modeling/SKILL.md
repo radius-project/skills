@@ -147,10 +147,14 @@ Wire containers to infrastructure via `connections`. Read [connection-convention
 Rules:
 - NEVER duplicate auto-injected env vars with manual `env` entries.
 - Only add explicit `env` entries for app-specific variables NOT covered by connection auto-injection.
+- A sensitive recipe output (connection string, URL with an access key, API key) is NOT in the connection blob — bind it with `valueFrom.secretKeyRef` from `<resource>.properties.secrets.name`. Keep the `connection` for the non-secret discovery vars (host, port).
 
 ## Secrets
 
-See [secrets-handling.md](references/secrets-handling.md). Read the type's schema to determine the credential shape: `username` + `password` directly on the resource; a `Radius.Security/secrets` referenced via `secretName`; or none (the recipe generates the connection). Do not assume by engine — follow whatever the schema defines. The password is always a `@secure() param`, and the username is the database administrator you author (e.g. `myadmin`). Use `Radius.Security/secrets` for app secrets (API keys) too.
+See [secrets-handling.md](references/secrets-handling.md). Secrets flow in two directions:
+
+- **Inputs** (credentials you supply): read the type's schema for the shape — `username` + `password` directly on the resource; a `Radius.Security/secrets` referenced via `secretName`; or none. Do not assume by engine. The password is always a `@secure() param`, and the username is the database administrator you author (e.g. `myadmin`). Use `Radius.Security/secrets` for app secrets (API keys) too.
+- **Outputs** (sensitive values the recipe generates — connection strings, URLs with access keys, API keys): when the schema defines a read-only `secrets` block, Radius redacts these from the resource's properties and materializes them into a managed secret. Consume them in a container with `valueFrom.secretKeyRef`, using `<resource>.properties.secrets.name` and a key from that block. Do NOT author a secret for these and do NOT read them from the connection blob.
 
 ## Bicep Structure Rules
 
@@ -165,7 +169,8 @@ Before returning the Bicep, verify:
 - [ ] `connections` is a top-level object map under `properties` (not inside `containers`, not an array).
 - [ ] Ports use `containerPort`; a built image uses `build.source` (repo git URL) and the container references `.imageReference`.
 - [ ] Credentials match the type's schema: `username`+`password` on the resource, or `secretName`+secret, or none — whichever the schema defines. Password via `@secure() param`; `database`/`topic`/`queue`/etc. derived from source.
-- [ ] No hardcoded passwords, no readOnly properties set, no comments in the Bicep, and no `bicepconfig.json`.
+- [ ] Secret outputs (schema has a read-only `secrets` block) are consumed via `valueFrom.secretKeyRef` using `<resource>.properties.secrets.name` and a key from that block — never read as plain properties or from the connection blob, and never re-authored as a `Radius.Security/secrets`.
+- [ ] No hardcoded passwords, no readOnly properties **set**, no comments in the Bicep, and no `bicepconfig.json`. (Referencing `.properties.imageReference` and `.properties.secrets.name` is allowed — those are the only sanctioned read-only references.)
 
 ## Example
 

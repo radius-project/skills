@@ -31,6 +31,14 @@ resource myContainer 'Radius.Compute/containers@2025-08-01-preview' = {
           MY_VAR: {
             value: 'some-value'       // must use { value: '...' } syntax
           }
+          SECRET_VAR: {               // bind a secret OUTPUT by reference
+            valueFrom: {
+              secretKeyRef: {
+                secretName: mysqlDb.properties.secrets.name  // reserved read-only ref
+                key: 'connectionString'                      // key from the schema's secrets block
+              }
+            }
+          }
         }
       }
     }
@@ -50,8 +58,8 @@ Rules:
 - `connections` is a TOP-LEVEL property under `properties` — NOT inside `containers`
 - `disableDefaultEnvVars` goes on the connection entry, NOT on the container
 - Port property is `containerPort`, NOT `port`
-- `env` values use `{ value: 'string' }` syntax, NOT bare strings
-- Do NOT reference readOnly properties of other resources (e.g. `mysqlDb.properties.host`)
+- `env` values use `{ value: 'string' }` for literals, or `{ valueFrom: { secretKeyRef: { secretName: ..., key: ... } } }` to bind a secret output
+- Do NOT reference readOnly properties of other resources (e.g. `mysqlDb.properties.host`) — except the two sanctioned wiring references: `<image>.properties.imageReference` and `<resource>.properties.secrets.name`
 
 ## Radius.Compute/containerImages structure
 
@@ -100,6 +108,7 @@ Rules:
 - Symbolic name is engine/instance-derived (`mysqlDb`), NOT fixed — so multiple data stores never collide
 - Developer-facing props (`database`, `version`, `size`, `topic`, `queue`, `container`) are derived from source — do NOT hardcode; only set properties the schema defines
 - Do NOT set readOnly properties (`host`, `port`, `connectionString`) — these are recipe outputs
+- If the schema defines a read-only `secrets` block, the resource's sensitive outputs (e.g. `connectionString`, `url`, `apiKey`, `accountKey`) are redacted from its plain properties and delivered through a managed secret. Consume them in a container via `valueFrom.secretKeyRef` using `<resource>.properties.secrets.name` and a key from that block — never read them as plain properties or from the connection blob. See [secrets-handling.md](secrets-handling.md)
 
 ## Radius.Security/secrets structure
 
@@ -126,6 +135,7 @@ resource dbSecret 'Radius.Security/secrets@2025-08-01-preview' = {
 
 Rules:
 - Used when a data type's schema defines `secretName` (referenced from the data resource) and for app secrets (API keys, tokens) — not when the schema takes `username`/`password` directly
+- Do NOT author this for a secret **output** — when a schema exposes a read-only `secrets` block, Radius creates and owns that managed secret; you only reference `<resource>.properties.secrets.name` from a container `secretKeyRef` (see [secrets-handling.md](secrets-handling.md))
 - NEVER hardcode passwords — use `@secure() param`
 - `data` is an object map, NOT an array
 - Keys in `data` are UPPERCASE (`USERNAME`, `PASSWORD`, `API_KEY`)

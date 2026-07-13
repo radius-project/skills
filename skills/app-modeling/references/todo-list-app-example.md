@@ -2,34 +2,114 @@
 
 ## Source analysis
 
-- **Framework**: Node.js + Express.js
-- **Port**: 3000
-- **Persistence**: Swappable — SQLite (default) or MySQL (when `MYSQL_HOST` is set)
-- **Env vars read by app**: `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DB`
-- **Compose**: MySQL 8.0 with persistent volume
-- **Dockerfile**: Yes — builds from `node:22-alpine`, runs `node src/index.js`
-- **Published image**: No — must be built from Dockerfile
-- **Pattern**: B — Stateful / Database-Backed Application
+- **Role**: long-running Node.js/Express web service
+- **Listener**: port 3000, configured by the application
+- **Persistence**: SQLite by default; MySQL when `MYSQL_HOST` is present
+- **Native configuration read by source**: `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DB`
+- **Backing service**: MySQL 8.0 with database `todos`
+- **Image**: complete Dockerfile/build context, pinned to an immutable source commit
+- **Storage**: the modeled MySQL service owns persistence; no application filesystem volume is required
+- **Primary pattern**: Web App
 
-## Resource mapping
+## Key decisions
 
-| Source component | Radius Resource Type | API Version |
-|---|---|---|
-| Application grouping | `Radius.Core/applications` | `2025-08-01-preview` |
-| Dockerfile (build image) | `Radius.Compute/containerImages` | `2025-08-01-preview` |
-| Node.js container | `Radius.Compute/containers` | `2025-08-01-preview` |
-| MySQL 8.0 | `Radius.Data/mySqlDatabases` | `2025-08-01-preview` |
+1. The unmodified source does not parse Radius generic `CONNECTION_*` variables, so the container maps every required native MySQL variable explicitly.
+2. `mysqlDb.properties.host` is a nonsecret read-only output confirmed in the exact MySQL schema. Referencing it creates the database dependency edge.
+3. The developer-supplied password enters through `@secure()` and the MySQL schema's sensitive `password` property. A `Radius.Security/secrets` resource also exposes it to the workload through `secretKeyRef`; it is not assigned to plain `env.value`.
+4. A generic connection is omitted because the source does not consume it and direct references already establish ordering.
+5. The source build is consumed through `todoImage.properties.imageReference`.
+6. `containerPort: 3000` matches the inspected process listener. No route is added because external ingress was not requested.
 
-## Key decisions explained
+## Expected app.bicep
 
-1. **`Radius.Core/applications@2025-08-01-preview`** — the application resource is a built-in Radius type (provided by the `radius` extension), NOT from `resource-types-contrib`.
-2. **`containerImages` resource** — the app has a Dockerfile but no published image. The `containerImages` resource builds and pushes it.
-3. **`build.source`** — the `containerImages` resource builds from the repo's git URL (e.g. `git::https://github.com/dockersamples/todo-list-app.git?ref=<sha>`); there is no `image` property or `param image`.
-4. **`imageReference`** — the container sets `image: todoImage.properties.imageReference`, which creates the build-ordering dependency (no explicit connection to the image).
-5. **Database credentials** — `mySqlDatabases` takes `username` (an admin you author, e.g. `myadmin`) and `password` directly on the resource; no separate secret. The `password` comes from a `@secure() param`.
-6. **`@secure() param password string`** — password is passed at deploy time, never hardcoded.
-7. **`database: 'todos'`** — derived from the `MYSQL_DATABASE: todos` in compose.yaml, not hardcoded.
-8. **`version: '8.0'`** — derived from the `mysql:8.0` image tag in compose.yaml, not hardcoded.
-9. **One connection on the container** — `mysqldb` for database auto-injection. Build ordering comes from referencing `todoImage.properties.imageReference`, not a connection.
-10. **No routes** — not added unless external ingress is explicitly required.
-11. **App code change required** — `Radius.Compute/containers` injects a JSON blob via `CONNECTION_MYSQLDB_PROPERTIES`, not individual vars. The app's `src/persistence/index.js` must be updated to parse this JSON. See [connection-conventions.md](connection-conventions.md) for helper code.
+```bicep
+extension radius
+
+param environment string
+
+@secure()
+param mysqlPassword string
+
+var databaseName = 'todos'
+var databaseUsername = 'myadmin'
+
+resource todoApp 'Radius.Core/applications@2025-08-01-preview' = {
+  name: 'todo-list-app'
+  properties: {
+    environment: environment
+  }
+}
+
+resource mysqlDb 'Radius.Data/mySqlDatabases@2025-08-01-preview' = {
+  name: 'mysql'
+  properties: {
+    environment: environment
+    application: todoApp.id
+    database: databaseName
+    version: '8.0'
+    username: databaseUsername
+    password: mysqlPassword
+  }
+}
+
+resource mysqlRuntimeSecret 'Radius.Security/secrets@2025-08-01-preview' = {
+  name: 'mysql-runtime-secret'
+  properties: {
+    environment: environment
+    application: todoApp.id
+    data: {
+      MYSQL_PASSWORD: {
+        value: mysqlPassword
+      }
+    }
+  }
+}
+
+resource todoImage 'Radius.Compute/containerImages@2025-08-01-preview' = {
+  name: 'todo-list-app-image'
+  properties: {
+    environment: environment
+    application: todoApp.id
+    build: {
+      source: 'git::https://github.com/dockersamples/todo-list-app.git?ref=5a6fbf5caf982f1d928fe6c1c32aa74f1e95e063'
+    }
+  }
+}
+
+resource todoContainer 'Radius.Compute/containers@2025-08-01-preview' = {
+  name: 'todo-list-app'
+  properties: {
+    environment: environment
+    application: todoApp.id
+    containers: {
+      todo: {
+        image: todoImage.properties.imageReference
+        ports: {
+          web: {
+            containerPort: 3000
+          }
+        }
+        env: {
+          MYSQL_HOST: {
+            value: mysqlDb.properties.host
+          }
+          MYSQL_USER: {
+            value: databaseUsername
+          }
+          MYSQL_PASSWORD: {
+            valueFrom: {
+              secretKeyRef: {
+                secretName: mysqlRuntimeSecret.name
+                key: 'MYSQL_PASSWORD'
+              }
+            }
+          }
+          MYSQL_DB: {
+            value: databaseName
+          }
+        }
+      }
+    }
+  }
+}
+```

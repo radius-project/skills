@@ -1,17 +1,17 @@
 # Component Catalog
 
-Maps common application components to Radius resource types, with detection cues from source code (client libraries across npm / PyPI / NuGet / RubyGems, plus manifest and connection-string hints). Use this to turn "what's in the repo" into "which type to emit". Always verify the resolved type against its schema in `radius-project/resource-types-contrib` (see the skill's Resource Type Resolution).
+Maps common application components to Radius resource types, with detection cues from source code (client libraries across npm / PyPI / NuGet / RubyGems, plus manifest and connection-string hints). Use this to turn "what's in the repo" into "which type to emit". Always verify the type against the exact configured extension, registered schema, and Environment recipe.
 
-Match by **wire protocol, not exact library**: MariaDB clients map to MySQL, Valkey to Redis, DocumentDB / CosmosDB (Mongo API) to MongoDB.
+Match by **wire protocol, not only a library or type name**: MariaDB clients can map to MySQL, Valkey to Redis, and DocumentDB / Cosmos DB's Mongo API to MongoDB only when protocol versions and authentication modes are compatible. A concrete recipe may back an abstract messaging type with Event Hubs, Service Bus, or another managed service; verify that the application client supports the actual endpoint, TLS, and authentication contract.
 
 ## Compute
 
 | Component | Detection cues | Radius type |
 |---|---|---|
-| Long-running service / worker / job | app entry point; a service in Dockerfile/compose | `Radius.Compute/containers` |
-| Build image from a Dockerfile | `Dockerfile` present, no published image | `Radius.Compute/containerImages` |
-| External ingress | HTTP server that needs a public URL | `Radius.Compute/routes` |
-| Persistent volume | volume mounts in compose/Dockerfile | `Radius.Compute/persistentVolumes` |
+| Long-running service / worker / job | app entry point; executable service in Dockerfile/compose; actual lifecycle | `Radius.Compute/containers` |
+| Build image from source | complete practical Dockerfile/build context; no preferable published image | `Radius.Compute/containerImages` |
+| External ingress | HTTP server with a verified listener that needs a public URL | `Radius.Compute/routes` |
+| Persistent volume | source writes durable data; compose volume; writable path and access mode | `Radius.Compute/persistentVolumes` |
 
 ## Backing services (Radius type available)
 

@@ -4,8 +4,8 @@ description: >
   Analyze a source code repository and generate a Radius application
   definition (.radius/app.bicep). Use when asked to create an application
   definition, model an application for Radius, or generate a Radius Bicep
-  file. Resolves resource types from radius-project/resource-types-contrib
-  and follows deterministic rules for validated output.
+  file. Resolves the configured Radius schemas and the application's runtime
+  contract to produce validated, deployable output.
 ---
 
 # Radius Application Modeling
@@ -27,11 +27,14 @@ Don't create the pull request automatically — wait for the user to confirm. If
 
 Before writing the Bicep:
 
-1. Analyze the source (package manifest, Dockerfile/compose, entry point, persistence layer, env vars) and detect the app's components — the compute runtime and each backing service. Map each to a Radius type using [component-catalog.md](references/component-catalog.md).
-2. Note the primary architecture pattern for context — see [architecture-patterns.md](references/architecture-patterns.md). Composition is driven by the detected components, not the pattern label, and an app may combine patterns. If a detected component has no Radius type yet, report the gap rather than substituting an unrelated type.
-3. Resolve the resource types the app needs from `radius-project/resource-types-contrib`. Derive each schema path from the type name (see [Resource Type Resolution](#resource-type-resolution)) and read only those files. If a needed type's schema isn't at the derived path, search the repo for `<typeName>.yaml`; if it still can't be resolved, stop and report the missing type rather than guessing. Types the app doesn't use don't need to resolve.
-4. Apply the naming, structure, and secrets rules below (and in [bicep-structure-rules.md](references/bicep-structure-rules.md), [naming-conventions.md](references/naming-conventions.md), [secrets-handling.md](references/secrets-handling.md)).
-5. Generate the Bicep and check it against the [validation checklist](#validation-checklist).
+1. Inventory every executable workload and backing service from manifests, Dockerfiles, compose files, entrypoints, source configuration reads, and client initialization. Treat web, worker, migration, scheduler, and sidecar roles separately.
+2. Extract a runtime contract for each workload: image/build context, entrypoint and arguments, listener and ports, required environment/configuration, secrets, writable storage, dependencies, and wire protocols. Follow [runtime-contract.md](references/runtime-contract.md).
+3. Map backing services to Radius types with [component-catalog.md](references/component-catalog.md), using [architecture-patterns.md](references/architecture-patterns.md) only as context. Report unsupported essential components instead of substituting unrelated types.
+4. Inspect the repository's `bicepconfig.json` and resolve every emitted type against the exact configured Radius extension. Use the matching `resource-types-contrib` schema revision and the target Environment's recipe/output contract when available; do not copy shapes from another version.
+5. Choose a source build only when the repository has a complete, practical build context. Otherwise use a pinned published image. Follow [bicep-structure-rules.md](references/bicep-structure-rules.md).
+6. Map every required runtime value using [connection-conventions.md](references/connection-conventions.md) and [secrets-handling.md](references/secrets-handling.md). A generic Radius connection is sufficient only when the source consumes the exact generic contract supplied by the configured version.
+7. Generate the Bicep using [naming-conventions.md](references/naming-conventions.md), then compile it with the exact configured extension. Treat unknown type/property warnings as unresolved schema mismatches.
+8. Perform the [validation checklist](#validation-checklist), including a static consistency pass against every workload's runtime contract. Compilation alone is not success.
 
 ## Deterministic Naming Rules
 
@@ -45,7 +48,7 @@ These rules eliminate ambiguity. Apply them exactly.
 | Container | `<serviceName>Container` — service short name camelCase; single-container apps use `<shortName>Container` (e.g., `todoContainer`) |
 | Container image | `<serviceName>Image` (e.g., `todoImage`) |
 | Data store (database/cache/queue) | `<engine>` + role suffix, camelCase: `mysqlDb`, `postgresDb`, `neo4jDb`, `redisCache`. Multiple of the same engine: prefix with the source store name (e.g., `ordersPostgresDb`) |
-| Data store secret | `<engine>Secret` — only when the type's schema defines `secretName`; app secrets use `appSecrets` |
+| Data store secret | `<engine>Secret` when the type requires `secretName`; `<engine>RuntimeSecret` when the app must consume a supplied credential via `secretKeyRef`; app secrets use `appSecrets` |
 | Route | `<serviceName>Route` (e.g., `todoRoute`) |
 
 ### Resource `name` properties (string values in Bicep)
@@ -56,7 +59,7 @@ These rules eliminate ambiguity. Apply them exactly.
 | Container | Service name in kebab-case; single-container apps use the app name (e.g., `'todo-list-app'`) |
 | Container image | `'<service-name>-image'` (e.g., `'todo-list-app-image'`) |
 | Data store | Engine short name in kebab-case (`'mysql'`, `'postgres'`, `'neo4j'`, `'redis'`); multiple of the same engine use the source store name |
-| Data store secret | `'<engine>-secret'`; app secrets `'app-secrets'` |
+| Data store secret | `'<engine>-secret'` or `'<engine>-runtime-secret'`; app secrets `'app-secrets'` |
 
 ### Connection keys
 
@@ -87,12 +90,14 @@ These rules eliminate ambiguity. Apply them exactly.
 
 ### Extensible types (from `radius-project/resource-types-contrib`)
 
-Resolve each type's schema at runtime from the `radius-project/resource-types-contrib` repository. Do NOT hardcode a file path — derive it from the resource type name using the repo convention:
+First inspect the target repository's `bicepconfig.json`: the `radius` extension alias is the compile-time contract. Resolve schemas from the `resource-types-contrib` revision that produced that artifact, or from the Environment's registered type definition. A mutable artifact such as `radius:latest`, a recipe tagged `latest`, or a branch ref can drift; warn about that uncertainty and do not mix its property shapes with a different revision.
+
+Use the `radius-project/resource-types-contrib` repository for discovery. Do NOT hardcode a file path — derive it from the resource type name using the repo convention:
 
 - Category = the segment after `Radius.` in the namespace (`Radius.Compute` → `Compute`, `Radius.Data` → `Data`, `Radius.Messaging` → `Messaging`, `Radius.AI` → `AI`, `Radius.Storage` → `Storage`, `Radius.Security` → `Security`)
 - Schema path = `<Category>/<typeName>/<typeName>.yaml` (e.g., `Radius.Data/mySqlDatabases` → `Data/mySqlDatabases/mySqlDatabases.yaml`)
 
-Read the schema file to get the exact property names, types, and API version. Use the API version declared in the schema (currently `2025-08-01-preview` for these types) rather than assuming a fixed value.
+Read the matching schema file for property names, types, sensitivity, read-only outputs, and API versions. The configured extension and type registered in the target Environment must agree. Stop and report a version mismatch rather than choosing one contract or guessing.
 
 The following is the COMPLETE allow-list of types this skill may emit:
 
@@ -119,42 +124,46 @@ Do NOT use any type not listed above. Do NOT invent properties.
 
 ## Extension
 
-Declare exactly one extension, `extension radius`. It provides every Radius type (`Radius.Core/*`, `Radius.Compute/*`, `Radius.Data/*`, `Radius.Messaging/*`, `Radius.AI/*`, `Radius.Security/*`). Do NOT declare per-namespace or per-type extensions (`radiusCompute`, `containers`, `kafka`, etc.).
+Declare exactly one extension, `extension radius`. It provides every Radius type (`Radius.Core/*`, `Radius.Compute/*`, `Radius.Data/*`, `Radius.Messaging/*`, `Radius.AI/*`, `Radius.Security/*`). Do NOT declare per-namespace or per-type extensions (`radiusCompute`, `containers`, `kafka`, etc.). The alias must resolve through the target repository's existing configuration; do not silently add or replace `bicepconfig.json`. Prefer an immutable extension reference when configuration is in scope.
 
 ## app.bicep Structure (mandatory order)
 
 Declare resources in this order (do NOT output this as code — it is only for your reference):
 
 1. Extension: `extension radius` (single, covers all Radius types)
-2. Params: `environment`; add a `@secure() param` for each secret value needed (DB password, API key)
+2. Params: `environment`; add a `@secure() param` for each developer-supplied secret value
 3. Application resource (`Radius.Core/applications@2025-08-01-preview`) — always exactly one
 4. Data / infrastructure resources (databases, caches, message brokers, object storage, AI services)
-5. Secret resources (app API keys, or DB credentials when a schema uses `secretName`)
+5. Secret resources (app secrets, schema-required credentials, or runtime bindings for supplied secrets)
 6. Container image resources (if building from Dockerfile)
-7. Container resources (with connections to images and infra)
+7. Container resources (with image, configuration, secret, and dependency wiring)
 8. Routes (only if external ingress needed)
 
 Rules:
 - One `Radius.Compute/containers` per container service; one `Radius.Data/*` per backing data store (engine/instance-derived symbolic name).
-- Building from a Dockerfile: add a `Radius.Compute/containerImages` resource with `build.source` set to the repo git URL (`git::https://github.com/<org>/<repo>.git//<subdir>?ref=<sha-or-tag>`); the container references the built image via `<serviceName>Image.properties.imageReference` (no separate connection needed).
+- Building from a complete Dockerfile context: add a `Radius.Compute/containerImages` resource with `build.source` set to the repo git URL (`git::https://github.com/<org>/<repo>.git//<subdir>?ref=<sha-or-tag>`); the container references the built image via `<serviceName>Image.properties.imageReference` (no separate connection needed).
 - Database credentials follow the type's schema: if it defines `username`/`password`, set them on the resource; if it defines `secretName`, create a `Radius.Security/secrets` and reference it; if it defines neither, the type takes no credentials. Always use a `@secure() param` for the password.
 - Add `Radius.Compute/routes` only for external ingress.
+- Keep provider modules, SKUs, regions, firewall/network policy, and recipe output mapping in Environment/provider Bicep. `app.bicep` contains only developer intent and app-facing runtime wiring.
 
 ## Connections
 
-Wire containers to infrastructure via `connections`. Read [connection-conventions.md](references/connection-conventions.md) for the correct env var format.
+`connections` declares a generic Radius relationship. It does not translate resource properties into arbitrary application-specific variable or configuration names. Read [connection-conventions.md](references/connection-conventions.md).
 
 Rules:
-- NEVER duplicate auto-injected env vars with manual `env` entries.
-- Only add explicit `env` entries for app-specific variables NOT covered by connection auto-injection.
-- A sensitive recipe output (connection string, URL with an access key, API key) is NOT in the connection blob — bind it with `valueFrom.secretKeyRef` from `<resource>.properties.secrets.name`. Keep the `connection` for the non-secret discovery vars (host, port).
+- Inspect the source to identify the exact names, casing, value format, defaults, and configuration mechanism it consumes.
+- Generic projection can be a `CONNECTION_<NAME>_PROPERTIES` JSON value, individual `CONNECTION_<NAME>_<PROPERTY>` values, or another version-specific shape. Verify the configured extension/runtime contract; do not assume one format.
+- Use a connection alone only when the application explicitly consumes that applicable generic contract. Otherwise map each required native input explicitly from a verified nonsecret resource output, a secret reference, a literal/default, or runtime composition.
+- A direct resource property or secret reference creates dependency ordering. Do not add a connection merely for ordering; retain one only when the application/tooling consumes the relationship.
+- Explicit native variables may coexist with generic projection. Avoid conflicting values, and use `disableDefaultEnvVars` only when the exact container schema supports it and the generic variables would be harmful.
 
 ## Secrets
 
-See [secrets-handling.md](references/secrets-handling.md). Secrets flow in two directions:
+See [secrets-handling.md](references/secrets-handling.md). Secret contracts are version- and type-specific:
 
-- **Inputs** (credentials you supply): read the type's schema for the shape — `username` + `password` directly on the resource; a `Radius.Security/secrets` referenced via `secretName`; or none. Do not assume by engine. The password is always a `@secure() param`, and the username is the database administrator you author (e.g. `myadmin`). Use `Radius.Security/secrets` for app secrets (API keys) too.
-- **Outputs** (sensitive values the recipe generates — connection strings, URLs with access keys, API keys): when the schema defines a read-only `secrets` block, Radius redacts these from the resource's properties and materializes them into a managed secret. Consume them in a container with `valueFrom.secretKeyRef`, using `<resource>.properties.secrets.name` and a key from that block. Do NOT author a secret for these and do NOT read them from the connection blob.
+- **Inputs** (credentials you supply): follow the exact schema — sensitive resource properties, a referenced `Radius.Security/secrets`, or no credential input. Use `@secure()` for Bicep inputs, but remember it does not automatically protect every downstream `env.value` or interpolated property from state.
+- **Outputs** (values a recipe generates): inspect the exact registered schema and recipe output mapping for the secret resource/path and key names. Prefer `valueFrom.secretKeyRef` when supported; do not assume every version exposes `<resource>.properties.secrets.name`.
+- When an application requires a connection string containing a secret, bind the secret as a helper environment variable and compose at runtime with correct ordering and escaping. URL-encode credentials when the target syntax requires it.
 
 ## Bicep Structure Rules
 
@@ -164,16 +173,18 @@ Read [bicep-structure-rules.md](references/bicep-structure-rules.md) for all str
 
 Before returning the Bicep, verify:
 - [ ] Exactly one `Radius.Core/applications@2025-08-01-preview`, and one `extension radius` (no per-namespace or per-type extensions).
-- [ ] Every `Radius.*` type is on the allow-list and matches its schema; use the API version from the schema.
-- [ ] `param environment string` is declared; add a `@secure() param` for each secret (DB password, API key).
-- [ ] `connections` is a top-level object map under `properties` (not inside `containers`, not an array).
-- [ ] Ports use `containerPort`; a built image uses `build.source` (repo git URL) and the container references `.imageReference`.
+- [ ] The file compiles with the target repository's exact configured extension; every `Radius.*` type is on the allow-list and matches that version's schema and API version. Unknown type/property warnings are resolved, not ignored.
+- [ ] `param environment string` is declared; add a `@secure() param` for each developer-supplied secret.
+- [ ] Every executable workload has the correct role, image/build, entrypoint/arguments, listener, exposed ports, environment/configuration, writable storage, and restart behavior. `containerPort` matches the process; it does not configure the listener.
+- [ ] Every required app-native input is supplied with the exact name, casing, type, URL/config syntax, and intentional default found in source. Each declared generic connection is actually consumable by that source.
+- [ ] A source build has a complete practical Dockerfile/context and uses an immutable ref; otherwise the published image is pinned. Generated builds are consumed through `.properties.imageReference`.
 - [ ] Credentials match the type's schema: `username`+`password` on the resource, or `secretName`+secret, or none — whichever the schema defines. Password via `@secure() param`; `database`/`topic`/`queue`/etc. derived from source.
-- [ ] Secret outputs (schema has a read-only `secrets` block) are consumed via `valueFrom.secretKeyRef` using `<resource>.properties.secrets.name` and a key from that block — never read as plain properties or from the connection blob, and never re-authored as a `Radius.Security/secrets`.
-- [ ] No hardcoded passwords, no readOnly properties **set**, no comments in the Bicep, and no `bicepconfig.json`. (Referencing `.properties.imageReference` and `.properties.secrets.name` is allowed — those are the only sanctioned read-only references.)
+- [ ] Every secret follows the exact schema/recipe contract and uses `secretKeyRef` where supported. No secret is hardcoded or accidentally moved into plain state; runtime-composed values preserve ordering, escaping, and required encoding.
+- [ ] Read-only properties are never **set**. A referenced nonsecret output exists in the exact schema and recipe; a referenced secret path/key exists in the exact secret-output contract. Such direct references provide dependency ordering.
+- [ ] Provider behavior matches the client: FQDN, TLS, port, auth mode, protocol/version, connection-string syntax, and network access are verified. Provider modules, SKUs, regions, and firewall configuration remain outside `app.bicep`.
+- [ ] A health endpoint is not treated as proof of dependency connectivity; perform the static consistency pass in [runtime-contract.md](references/runtime-contract.md).
+- [ ] The generated Bicep contains no explanatory comments and does not add `bicepconfig.json`.
 
 ## Example
 
-See [todo-list-app-example.md](references/todo-list-app-example.md) for a full worked example (`dockersamples/todo-list-app`).
-
-Read [todo-list-app-example.md](references/todo-list-app-example.md) for a complete worked example. The generated Bicep in that example is the **expected correct output** for `dockersamples/todo-list-app`.
+See [todo-list-app-example.md](references/todo-list-app-example.md) for a complete worked example whose source expects native database variables rather than Radius generic connection variables.

@@ -11,6 +11,9 @@
 | Container keys (in `containers` map) | camelCase, describes the container role | `todo`, `frontend`, `api` |
 | Port keys (in `ports` map) | camelCase, describes the protocol/use | `web`, `http`, `grpc` |
 | Volume keys (in `volumes` map) | camelCase, describes the data | `data`, `cache`, `secrets` |
+| Custom Resource Type namespace | fixed | `Radius.Resources` |
+| Custom Resource Type name | plural camelCase | `mqttBrokers` |
+| Custom Recipe filename | exact type name + `.bicep` | `mqttBrokers.bicep` |
 
 ## Rules
 
@@ -18,3 +21,4 @@
 - Resource `name` properties (string values) are always kebab-case
 - Map keys inside `containers`, `ports`, and `volumes` are camelCase; `connections` keys are lowercase (engine + role)
 - Never use spaces, underscores, or special characters in any name
+- Custom type names describe portable application capabilities and never include `Azure`, ARM provider names, or SKUs

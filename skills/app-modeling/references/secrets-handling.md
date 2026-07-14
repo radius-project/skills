@@ -6,8 +6,8 @@ Secret behavior is part of the exact resource type, extension, recipe, and conta
 
 For every secret, inspect:
 
-1. the exact registered resource schema for sensitive input properties, secret references, read-only outputs, and key names;
-2. the configured recipe's parameters and output mapping;
+1. the exact registered standard schema or generated custom schema for sensitive input properties, secret references, read-only outputs, and key names;
+2. the configured standard Recipe or generated custom Recipe's parameters and output mapping;
 3. the exact `Radius.Security/secrets` and `Radius.Compute/containers` schemas for authored-secret and `secretKeyRef` support; and
 4. the application source for the final native variable/configuration name and required format.
 

@@ -28,8 +28,8 @@ Create a requirement ledger before writing Bicep:
 
 | Criterion | Required evidence |
 |---|---|
-| Typed resource | Exact extension type/schema plus selected source adapter or client |
-| Resource property reference | Verbatim read/write path in the exact schema/API version; recipe mapping when the value is generated |
+| Typed resource | Exact standard extension type/schema or generated custom schema plus selected source adapter or client |
+| Resource property reference | Verbatim read/write path in the exact schema/API version; standard or generated Recipe mapping when the value is produced |
 | Workload role | Runnable image process and complete feature configuration |
 | Native key/value | Pinned-source read and exact expected format/value |
 | Secret binding | Exact managed/authored secret resource path and key |
@@ -40,7 +40,7 @@ Every row must map to emitted Bicep and a real consumer. A declared but unused v
 
 Before writing Bicep, enumerate every planned resource property read and write as a separate ledger row. Record the verbatim path and prove it against the exact configured extension schema and API version. For a generated output, also prove that the selected recipe maps that output. For a managed secret, prove the declared managed-secret name path and key; the key declaration is metadata, not a readable secret value. When `properties.secrets` declares the output contract, the consumer row must use that managed secret name and verified key directly through `secretKeyRef`; any row that reads the key as a resource property or copies it into an authored secret fails preflight.
 
-Reject the model before generation if any schema path is absent or any generated output cannot be reconciled with the recipe. Do not repair a missing output by guessing a direct convenience property, choosing a similarly named alias, or copying it through an authored secret wrapper. Compilation is a downstream confirmation, not the discovery mechanism for property paths.
+Reject the model before generation if any standard schema path is absent or any generated output cannot be reconciled with its Recipe. When no standard type exists, the custom Resource Type workflow may define the missing contract only after the application and Azure implementation prove every input, output, secret, and protocol field. Do not repair a missing standard output by guessing a convenience property or creating a custom alias for the same standard service. Compilation is a downstream confirmation, not the discovery mechanism for property paths.
 
 ## Inventory each workload
 
@@ -122,7 +122,7 @@ Before returning the model:
 
 1. Account for every required app-native environment/config input or document an intentional source default.
 2. Close every explicit acceptance criterion in the requirement ledger; preserve required literal values and exact relationship names.
-3. Reject every resource property read/write that lacks a closed ledger row proving its exact schema path and, for generated outputs, its recipe mapping.
+3. Reject every resource property read/write that lacks a closed ledger row proving its exact standard or generated schema path and, for produced outputs, its Recipe mapping.
 4. Confirm every secret uses the exact supported secret path and is not exposed through plain state.
 5. Confirm every declared port matches a configured process listener.
 6. Confirm every command/argument and generated config file is compatible with the image entrypoint and available binaries.

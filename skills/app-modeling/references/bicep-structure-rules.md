@@ -4,7 +4,8 @@ These rules apply to all generated `app.bicep` files. Resolve property names and
 
 ## General
 
-- `extension radius` is the only extension line and comes first (it provides every Radius type; no per-namespace or per-type extensions)
+- `extension radius` always comes first
+- Add `extension customTypes` immediately after `extension radius` when `.radius/app.bicep` uses a generated `Radius.Resources/*` type; do not add per-standard-namespace or per-type extensions
 - `param environment string` always declared
 - A `@secure()` parameter is declared for each developer-supplied secret
 - Exactly ONE `Radius.Core/applications@2025-08-01-preview` resource

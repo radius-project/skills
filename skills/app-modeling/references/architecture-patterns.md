@@ -2,7 +2,7 @@
 
 Composition is **component-driven**: detect the app's executable workloads and backing services, extract each workload's [runtime contract](runtime-contract.md), map components through [component-catalog.md](component-catalog.md), and emit those resources. The patterns below are a **lens for context**, not rigid buckets — a real app often combines several (e.g. a Web App that is also AI/ML). Pick a *primary* pattern for the summary, but let detected components and source behavior drive the Bicep.
 
-If a detected component has no Radius type yet, note the gap and continue with the supported components; don't substitute an unrelated type.
+If a detected component has no standard Radius type, follow [custom-resource-types.md](custom-resource-types.md). Generate an Azure-backed custom type only when its exact runtime contract can be proven; otherwise note the gap and continue with supported components. Never substitute an unrelated service.
 
 ## The patterns
 
@@ -26,7 +26,7 @@ Batch or streaming ETL, analytics, and data processing.
 - **Radius types**: `Radius.Compute/containers` (with `restartPolicy: 'OnFailure'`/`'Never'` for batch) + `Radius.Storage/objectStorage` + `Radius.Messaging/kafka` when used.
 - **Runtime check**: distinguish a genuine application role from a one-shot connectivity or migration probe; do not turn verification into a long-running process.
 - **Readiness check**: a configurable engine needs a complete source and sink. Model each required producer/consumer or input/output role and ensure the process loads the generated configuration; an empty or placeholder pipeline is not functional.
-- **Gap**: distributed processing (Spark) has no Radius type yet — recognize and report the gap.
+- **Custom candidate**: distributed processing has no standard type. Generate one only for a source-compatible Azure service with a verified Bicep Recipe; otherwise report the gap.
 
 ### Real-time
 Low-latency event processing, WebSockets, live updates.
@@ -39,7 +39,7 @@ Line-of-business applications with compliance and integration needs.
 - **Signals**: .NET or Java stack; SQL Server (or Oracle); enterprise message brokers.
 - **Typical components**: container + SQL Server + a message broker.
 - **Radius types**: `Radius.Compute/containers` + `Radius.Data/sqlServerDatabases` (`username`/`password` on the resource) + `Radius.Messaging/rabbitMQ`.
-- **Gap**: Oracle and Vault have no Radius type yet — report the gap.
+- **Custom candidate**: Oracle and Vault have no standard type. Apply the exact client compatibility gates; Azure Key Vault is not compatible with a HashiCorp Vault client.
 
 ### AI/ML
 LLM inference, vector search, and model-backed features.
@@ -52,13 +52,13 @@ LLM inference, vector search, and model-backed features.
 ### IoT
 Device telemetry ingestion and command/control.
 - **Signals**: MQTT clients (`mqtt`, `paho-mqtt`); Mosquitto; device/edge messaging.
-- **Radius types**: none yet — MQTT/Mosquitto has no Radius type.
-- **Gap**: recognize the pattern but report that the broker has no Radius type; emit only the supported container(s).
+- **Radius types**: no standard MQTT type.
+- **Custom candidate**: generate one only when the Azure target supports the app's MQTT version, TLS, topics, and authentication; otherwise report the gap and emit only supported containers.
 
 ## How to apply (component-driven)
 
 1. From the source, list every executable workload and backing service the app connects to.
 2. Map each component to a Radius type via [component-catalog.md](component-catalog.md).
 3. Note the primary pattern above for the summary — remember apps can combine patterns.
-4. For any component with no Radius type, report the gap and continue with the supported ones (stop only if the missing piece is essential and the user must decide).
+4. For any component with no standard type, run the custom Resource Type workflow. Report the gap when it is ineligible (stop only if the missing piece is essential and the user must decide).
 5. Emit resources only after the runtime contract identifies each workload's native configuration, listener, storage, lifecycle, and protocol requirements.

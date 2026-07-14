@@ -12,7 +12,7 @@ npx skills add radius-project/skills
 
 | Skill | Description |
 |---|---|
-| [app-modeling](skills/app-modeling/SKILL.md) | Analyzes a source code repository and generates a Radius application definition (`app.bicep`) in the `.radius` directory at the repository root. |
+| [app-modeling](skills/app-modeling/SKILL.md) | Generates `.radius/app.bicep` and, when needed, repository-local custom Resource Types, Azure Recipes, a Bicep extension, and a Recipe Pack. |
 
 ## How It Works
 

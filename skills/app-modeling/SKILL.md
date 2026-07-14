@@ -10,7 +10,8 @@ description: >
   deploy because of a modeling or schema error. Do not use for: authoring
   generic or Azure Bicep unrelated to Radius, or deploying or running an
   already-modeled app. Resolves the configured Radius schemas and the
-  application's runtime contract to produce validated, deployable output.
+  application's runtime contract, and generates repository-local custom
+  Resource Types and Azure Recipes when no standard type fits.
 ---
 
 # Radius Application Modeling
@@ -23,10 +24,12 @@ When asked to model a repository, your chat reply should contain:
 
 1. A one-line intro naming the app (e.g. "I'll create an application definition for `todo-list-app`.").
 2. A short, natural summary of the application resources you identified — a brief list such as "Container: `todo-list-app`", "MySQL database", "Secret for DB credentials". A sentence or two of reasoning is fine; don't dump raw source analysis.
-3. The `.radius/app.bicep` in a single code block.
-4. An offer to open a pull request.
+3. When custom types were required, a concise list of the generated `.radius/` artifacts and published GHCR Recipe references.
+4. The `.radius/app.bicep` in a single code block.
+5. When custom artifacts were generated, confirmation that they were pushed to the current Copilot worktree branch.
+6. An offer to open a pull request.
 
-Don't create the pull request automatically — wait for the user to confirm. If they confirm, open a PR adding `.radius/app.bicep` with title `Add Radius application definition` and body `Add .radius/app.bicep for <app-name>.`
+Don't create the pull request automatically — wait for the user to confirm. If they confirm, open a PR against `main` with title `Add Radius application definition`. Use body `Add .radius/app.bicep for <app-name>.` for a standard-only model, or `Add the .radius application definition and custom Resource Type artifacts for <app-name>.` when custom types were generated.
 
 ## Workflow
 
@@ -36,11 +39,13 @@ Before writing the Bicep:
 2. Build an internal requirement ledger that maps every acceptance criterion and planned resource property reference to source evidence, an exact Radius schema/recipe field, and the workload setting that consumes it. Use it for reasoning and validation; do not print it or add it as Bicep comments. Follow [runtime-contract.md](references/runtime-contract.md).
 3. Inventory every executable workload and backing service in the selected profile from manifests, Dockerfiles, compose/Helm files, entrypoints, source configuration reads, client initialization, and referenced config files. Treat web, worker, producer, consumer, migration, scheduler, and sidecar roles separately.
 4. Extract each workload's runtime contract: image/build context, entrypoint and arguments, listener and ports, required environment/configuration, secrets, writable storage, dependencies, wire protocols, and feature-critical configuration.
-5. Map every selected backing service to a Radius type with [component-catalog.md](references/component-catalog.md), using [architecture-patterns.md](references/architecture-patterns.md) only as context. Report unsupported essential components instead of substituting unrelated types.
-6. Inspect the repository's `bicepconfig.json` and resolve every emitted type and planned property read/write against the exact configured Radius extension. Record the verbatim property path and schema proof in the ledger; for recipe outputs, also prove the output mapping and any managed-secret key. Reject an absent path before generation instead of guessing an alias, convenience property, or wrapper. Use the matching `resource-types-contrib` schema revision and target Environment recipe/output contract; do not copy shapes from another version.
+5. Map every selected backing service to a standard Radius type with [component-catalog.md](references/component-catalog.md), using [architecture-patterns.md](references/architecture-patterns.md) only as context. When no standard type fits, follow [custom-resource-types.md](references/custom-resource-types.md) to generate a repository-local type and Azure Recipe. Report a gap only when the application contract cannot be implemented safely on Azure; never substitute an unrelated service.
+6. Inspect the repository's `bicepconfig.json` and resolve every standard type and planned property read/write against the exact configured Radius extension. For each custom type, prove the schema and Azure Recipe contract first, then generate `.radius/custom-types.yaml`, `.radius/custom-types.tgz`, and `.radius/bicepconfig.json` as described in [custom-resource-types.md](references/custom-resource-types.md). Record every verbatim property path, Recipe output, and managed-secret key in the ledger.
 7. Choose a source build only when the repository has a complete, practical build context. Otherwise use a pinned published image. Map every runtime value using [connection-conventions.md](references/connection-conventions.md), [secrets-handling.md](references/secrets-handling.md), and [bicep-structure-rules.md](references/bicep-structure-rules.md).
-8. Generate the Bicep using [naming-conventions.md](references/naming-conventions.md), then compile it with the exact configured extension. Treat unknown type/property warnings as unresolved schema mismatches.
-9. Perform the [validation checklist](#validation-checklist) and close every item in the requirement ledger. Compilation or process startup alone is not success.
+8. Generate `.radius/app.bicep` using [naming-conventions.md](references/naming-conventions.md), then compile it with the exact configured standard and custom extensions. Treat unknown type/property warnings as unresolved schema mismatches.
+9. When custom types were generated, create an Azure Bicep Recipe for each type, compute its immutable target in the current GitHub repository's GHCR namespace, and generate `.radius/custom-recipe-pack.bicep` with those targets. Do not publish or reference `latest`.
+10. Perform the [validation checklist](#validation-checklist) and close every item in the requirement ledger. Compilation or process startup alone is not success.
+11. When custom artifacts were generated, show the exact GHCR targets, `.radius/` files, commit message, branch, and remote, then obtain explicit approval before publishing, committing, or pushing. After approval, publish every Recipe, rerun final validation, commit only the intended artifacts, and push the current Copilot worktree branch without creating, renaming, or switching branches. Stop if publication, commit, or push fails; do not offer a PR containing an unpublished Recipe reference.
 
 ## Deployment Profile and Acceptance Contract
 
@@ -56,7 +61,7 @@ Before writing the Bicep:
 When a deploy fails because of a modeling or schema error in an existing `.radius/app.bicep` (unknown type or API version, unknown or missing property, invalid reference between resources, wrong credential shape, or a Bicep parse or compile error), repair the file in place instead of regenerating it. This assumes the deploy error and any relevant logs have been provided; if they haven't, ask for them before attempting a fix.
 
 1. Confirm whether the failure comes from the application model. If it is an infrastructure, recipe, Environment, or cluster failure (for example, recipe download/execution or provider provisioning), stop and report that editing `app.bicep` will not fix it. A pod that never becomes ready is not enough to classify the failure: inspect events and logs to distinguish infrastructure/connectivity failures from incorrect workload configuration, listeners, credentials, or dependency wiring in `app.bicep`.
-2. Locate the implicated resource, property, or workload setting, then re-resolve the exact configured type schema and recipe output contract (see [Resource Type Resolution](#resource-type-resolution)) to confirm property names, required fields, credential shape, API version, and resource reference paths.
+2. Locate the implicated resource, property, or workload setting, then re-resolve the exact configured type schema and recipe output contract (see [Resource Type Resolution](#resource-type-resolution)) to confirm property names, required fields, credential shape, API version, and resource reference paths. If the application requires a component with no standard type, use the custom Resource Type workflow instead of inventing a standard type or property.
 3. Apply the fix using the same runtime-contract, naming, structure, and secrets rules as authoring so the repaired resource stays consistent with the rest of the file. While you are in the file, also correct any other clear schema or rule violations you notice, and report each collateral fix you made.
 4. Re-run the [validation checklist](#validation-checklist) against the whole file; a change in one resource can ripple to connections or references elsewhere.
 5. Return the corrected file with a short note of what changed and why, then suggest redeploying to confirm the fix. If the same error recurs, treat the previous fix as insufficient and try a different fix rather than reapplying the one that just failed. If a couple of different fixes still do not resolve it, or no different fix can be found, stop and surface the problem to the user instead of looping.
@@ -115,7 +120,7 @@ Explicit profile-required resource, relationship, and app-native configuration n
 
 `Radius.Core/applications` is built into the `radius` extension — there is no schema file for it in `resource-types-contrib`. Do NOT use `Applications.Core/applications` — the model has moved to `Radius.Core/applications`.
 
-### Extensible types (from `radius-project/resource-types-contrib`)
+### Standard extensible types (from `radius-project/resource-types-contrib`)
 
 First inspect the target repository's `bicepconfig.json`: the `radius` extension alias is the compile-time contract. Resolve schemas from the `resource-types-contrib` revision that produced that artifact, or from the Environment's registered type definition. A mutable artifact such as `radius:latest`, a recipe tagged `latest`, or a branch ref can drift; warn about that uncertainty and do not mix its property shapes with a different revision.
 
@@ -126,7 +131,7 @@ Use the `radius-project/resource-types-contrib` repository for discovery. Do NOT
 
 Read the matching schema file for property names, types, sensitivity, read-only outputs, and API versions. The configured extension and type registered in the target Environment must agree. Stop and report a version mismatch rather than choosing one contract or guessing.
 
-The following is the COMPLETE allow-list of types this skill may emit:
+The following is the standard catalog:
 
 | Need | Resource Type |
 |---|---|
@@ -147,17 +152,33 @@ The following is the COMPLETE allow-list of types this skill may emit:
 | External ingress | `Radius.Compute/routes` |
 | Secrets | `Radius.Security/secrets` |
 
-Do NOT use any type not listed above. Do NOT invent properties.
+Do NOT invent properties for these types. A type outside this table may be emitted only when it is generated and validated through the custom Resource Type workflow below.
+
+### Custom Resource Types (Azure)
+
+When the selected deployment profile requires a backing service that has no compatible standard type, follow [custom-resource-types.md](references/custom-resource-types.md). That workflow:
+
+- defines one or more `Radius.Resources/*` types in `.radius/custom-types.yaml`;
+- generates `.radius/custom-types.tgz` with `rad bicep publish-extension`;
+- adds the `customTypes` extension to `.radius/bicepconfig.json`;
+- creates one Azure Recipe at `.radius/recipes/<type-name>.bicep` per custom type;
+- publishes each Recipe beneath `ghcr.io/<owner>/<repo>/radius-recipes/` with a content-derived tag;
+- writes `.radius/custom-recipe-pack.bicep` with those immutable Recipe references; and
+- obtains approval, then commits and pushes the complete `.radius/` artifact set to the current worktree branch before offering a PR.
+
+Custom types remain application-oriented even though their generated Recipes support Azure only. Do not create a custom type when a standard type fits, when the application protocol is incompatible with the proposed Azure service, or when the Azure resource and output contract cannot be proved.
 
 ## Extension
 
-Declare exactly one extension, `extension radius`. It provides every Radius type (`Radius.Core/*`, `Radius.Compute/*`, `Radius.Data/*`, `Radius.Messaging/*`, `Radius.AI/*`, `Radius.Storage/*`, `Radius.Security/*`). Do NOT declare per-namespace or per-type extensions (`radiusCompute`, `containers`, `kafka`, etc.). The alias must resolve through the target repository's existing configuration; do not silently add or replace `bicepconfig.json`. Prefer an immutable extension reference when configuration is in scope.
+Always declare `extension radius` first. When `.radius/app.bicep` uses any generated `Radius.Resources/*` type, declare `extension customTypes` immediately after it. Do NOT declare per-standard-namespace or per-type extensions (`radiusCompute`, `containers`, `kafka`, etc.).
+
+The `radius` alias must preserve the target repository's exact configured contract. The `customTypes` alias must resolve to `custom-types.tgz` from `.radius/bicepconfig.json`. Do not replace unrelated Bicep configuration or an existing conflicting alias.
 
 ## app.bicep Structure (mandatory order)
 
 Declare resources in this order (do NOT output this as code — it is only for your reference):
 
-1. Extension: `extension radius` (single, covers all Radius types)
+1. Extensions: `extension radius`, then `extension customTypes` only when custom types are used
 2. Params: `environment`; add a `@secure() param` for each developer-supplied secret value
 3. Application resource (`Radius.Core/applications@2025-08-01-preview`) — always exactly one
 4. Data / infrastructure resources (databases, caches, message brokers, object storage, AI services)
@@ -172,6 +193,7 @@ Rules:
 - Database credentials follow the type's schema: if it defines `username`/`password`, set them on the resource; if it defines `secretName`, create a `Radius.Security/secrets` and reference it; if it defines neither, the type takes no credentials. Always use a `@secure() param` for the password.
 - Add `Radius.Compute/routes` only for external ingress.
 - Keep provider modules, SKUs, regions, firewall/network policy, and recipe output mapping in Environment/provider Bicep. `app.bicep` contains only developer intent and app-facing runtime wiring.
+- A generated custom type is developer intent in `app.bicep`; its Azure implementation belongs only in `.radius/recipes/` and `.radius/custom-recipe-pack.bicep`.
 
 ## Connections
 
@@ -202,8 +224,8 @@ Read [bicep-structure-rules.md](references/bicep-structure-rules.md) for all str
 Before returning the Bicep, verify:
 - [ ] One deployment profile is selected. Every explicit type, workload role/count, native key, required value, secret binding, and connection name from the request is represented in a closed requirement ledger.
 - [ ] Every planned resource property read/write has its verbatim path in the ledger and exists in the exact configured schema/API version. Every recipe-generated output also has a verified output mapping; every managed-secret reference has the declared secret-name path and key. An absent path blocks generation rather than being replaced by a guessed property, alias, or wrapper.
-- [ ] Exactly one `Radius.Core/applications@2025-08-01-preview`, and one `extension radius` (no per-namespace or per-type extensions).
-- [ ] The file compiles with the target repository's exact configured extension; every `Radius.*` type is on the allow-list and matches that version's schema and API version. Unknown type/property warnings are resolved, not ignored.
+- [ ] Exactly one `Radius.Core/applications@2025-08-01-preview`; `extension radius` is first; `extension customTypes` appears exactly once when and only when a generated type is used; no per-standard-namespace or per-type extensions are declared.
+- [ ] The file compiles with `.radius/bicepconfig.json`. Every standard type matches the configured `radius` extension; every custom type matches `.radius/custom-types.yaml` and `.radius/custom-types.tgz`. Unknown type/property warnings are resolved, not ignored.
 - [ ] `param environment string` is declared; add a `@secure() param` for each developer-supplied secret.
 - [ ] Every required executable role is modeled, including co-scheduled producer/consumer or proxy/backend roles. Its image/build, entrypoint/arguments, listener, exposed ports, config artifacts, writable storage/ownership, and lifecycle are correct. `containerPort` matches the process; it does not configure the listener.
 - [ ] Every required app-native input is supplied with the exact pinned-source name, casing, type, URL/config syntax, and value. Each declared generic connection is consumed by source or explicitly required as relationship metadata.
@@ -213,8 +235,12 @@ Before returning the Bicep, verify:
 - [ ] Read-only properties are never **set**. A referenced nonsecret output exists in the exact schema and recipe; a referenced secret path/key exists in the exact secret-output contract. Such direct references provide dependency ordering.
 - [ ] Every dependency has a complete client tuple: subresource name, endpoint/FQDN transformation, port, protocol/version, TLS mode, auth mechanism/identity, secret source, and final client syntax. Provider modules, SKUs, regions, and firewall configuration remain outside `app.bicep`.
 - [ ] Primary-feature readiness is proven: required model aliases, storage backends, database clients, and messaging inputs/outputs are configured and reference the selected resources. A health endpoint or idle/placeholder process is not sufficient.
+- [ ] If custom types were required, `.radius/custom-types.yaml`, `.radius/custom-types.tgz`, `.radius/bicepconfig.json`, every `.radius/recipes/<type-name>.bicep`, and `.radius/custom-recipe-pack.bicep` exist and agree on namespace, type name, API version, properties, outputs, and secret keys.
+- [ ] Every custom Recipe is Azure-only, compiles locally, uses stable and repeatable resource names, returns the exact schema outputs through `result`, and was successfully published to `ghcr.io/<owner>/<repo>/radius-recipes/<lowercase-type-name>:sha256-<digest>`. The Recipe Pack uses that exact reference without the `br:` prefix.
+- [ ] The custom extension was regenerated after the final schema change. `.radius/bicepconfig.json` preserves all pre-existing settings and maps `customTypes` to `custom-types.tgz`.
+- [ ] The current branch is the existing Copilot worktree branch. The user approved the exact GHCR targets, files, message, branch, and remote; only the intended `.radius/` artifacts were committed; and that branch was pushed successfully before a PR was offered.
 - [ ] Perform the static consistency pass in [runtime-contract.md](references/runtime-contract.md); no unresolved runtime caveat remains.
-- [ ] The generated Bicep contains no explanatory comments and does not add `bicepconfig.json`.
+- [ ] `.radius/app.bicep` contains no explanatory comments. No generated file contains credentials, registry tokens, or secret values.
 
 ## Example
 

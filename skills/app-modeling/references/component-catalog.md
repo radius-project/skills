@@ -1,6 +1,6 @@
 # Component Catalog
 
-Maps common application components to Radius resource types, with detection cues from source code (client libraries across npm / PyPI / NuGet / RubyGems, plus manifest and connection-string hints). Use this to turn the selected deployment profile and its pinned source support into types to emit. Always verify the type against the exact configured extension, registered schema, and Environment recipe.
+Maps common application components to Radius resource types, with detection cues from source code (client libraries across npm / PyPI / NuGet / RubyGems, plus manifest and connection-string hints). Use this to turn the selected deployment profile and its pinned source support into types to emit. Always verify a standard type against the exact configured extension, registered schema, and Environment Recipe. When no standard type fits, follow [custom-resource-types.md](custom-resource-types.md).
 
 Match by **wire protocol, not only a library or type name**: MariaDB clients can map to MySQL, Valkey to Redis, and DocumentDB / Cosmos DB's Mongo API to MongoDB only when protocol versions and authentication modes are compatible. A concrete recipe may back an abstract messaging type with Event Hubs, Service Bus, or another managed service; verify that the application client supports the actual endpoint, TLS, and authentication contract.
 
@@ -37,19 +37,19 @@ Match by **wire protocol, not only a library or type name**: MariaDB clients can
 | Object storage (S3 / Blob / GCS) | SDK dependency, filesystem/backend adapter, compose/Helm config, or explicit compatible profile selecting remote object storage | `Radius.Storage/objectStorage` | Web App, Data Pipeline, AI/ML |
 | App secrets (API keys, tokens); DB creds when the schema uses `secretName` | env-injected secrets; API keys in config | `Radius.Security/secrets` | supporting |
 
-## Recognized but no Radius type yet
+## Custom Resource Type candidates
 
-When present, include these in your summary and **report the gap** — do NOT substitute an unrelated type. Emit the supported components; if the missing piece is essential, ask the user how to proceed.
+These components have no standard type. Generate a custom `Radius.Resources/*` type and Azure Recipe only when the selected Azure service implements the application's exact protocol, authentication, and runtime contract. Otherwise report the gap; never substitute an unrelated service.
 
-| Component | Detection cues | Note |
+| Component | Detection cues | Custom workflow constraint |
 |---|---|---|
-| Serverless functions | AWS Lambda / Azure Functions / GCP Functions handlers | No type yet |
-| Generic message queue | `bullmq`, `celery`, `sidekiq`, SQS / Service Bus SDKs | Use Kafka/RabbitMQ if that is the actual broker; otherwise no type |
-| MQTT / Mosquitto | `mqtt`, `paho-mqtt` | No type yet (blocks full IoT) |
-| NATS | `nats` | No type yet |
-| Oracle | `oracledb`, `cx_Oracle` | No type yet |
-| Cassandra | `cassandra-driver` | No type yet |
-| InfluxDB | `@influxdata/influxdb-client`, `influxdb-client` | No type yet |
-| Memcached | `memcached`, `pymemcache` | No type yet |
-| Vector DB (pgvector, Qdrant, Pinecone, Weaviate) | `pgvector`, `@qdrant/js-client`, `pinecone-client` | Use `Radius.Data/postgreSqlDatabases` for pgvector storage; vector features not modeled |
-| Vault | `node-vault`, `hvac` | Use `Radius.Security/secrets` for app secrets; no Vault connection type |
+| Serverless functions | AWS Lambda / Azure Functions / GCP Functions handlers | Only a source-compatible Azure Functions profile is eligible; do not translate another provider's handler implicitly |
+| Generic message queue | `bullmq`, `celery`, `sidekiq`, SQS / Service Bus SDKs | Use Kafka/RabbitMQ when that is the actual broker; otherwise prove the exact Azure queue protocol |
+| MQTT / Mosquitto | `mqtt`, `paho-mqtt` | The Azure target must support the app's MQTT version, topics, TLS, and authentication |
+| NATS | `nats` | Report a gap unless a directly compatible Azure service and Bicep contract are proven |
+| Oracle | `oracledb`, `cx_Oracle` | The exact Oracle-on-Azure offering and client contract must be proven |
+| Cassandra | `cassandra-driver` | The Azure target must support the Cassandra protocol and features the app uses |
+| InfluxDB | `@influxdata/influxdb-client`, `influxdb-client` | The Azure target must preserve the InfluxDB API contract |
+| Memcached | `memcached`, `pymemcache` | Redis is not an automatic substitute; require a compatible Azure service |
+| Vector DB (pgvector, Qdrant, Pinecone, Weaviate) | `pgvector`, `@qdrant/js-client`, `pinecone-client` | Use the standard PostgreSQL type only for actual pgvector storage; otherwise prove the exact vector API |
+| Vault | `node-vault`, `hvac`, Azure Key Vault SDKs | Azure Key Vault is eligible only for its own SDK contract, never as a HashiCorp Vault substitute |

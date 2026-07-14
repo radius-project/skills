@@ -187,4 +187,4 @@ Before returning the Bicep, verify:
 
 ## Example
 
-See [todo-list-app-example.md](references/todo-list-app-example.md) for a complete worked example whose source expects native database variables rather than Radius generic connection variables.
+See [todo-list-app-example.md](references/todo-list-app-example.md) for source-derived modeling decisions when an application expects native database variables instead of Radius generic connection variables.

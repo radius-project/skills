@@ -29,6 +29,7 @@ Create a requirement ledger before writing Bicep:
 | Criterion | Required evidence |
 |---|---|
 | Typed resource | Exact extension type/schema plus selected source adapter or client |
+| Resource property reference | Verbatim read/write path in the exact schema/API version; recipe mapping when the value is generated |
 | Workload role | Runnable image process and complete feature configuration |
 | Native key/value | Pinned-source read and exact expected format/value |
 | Secret binding | Exact managed/authored secret resource path and key |
@@ -36,6 +37,10 @@ Create a requirement ledger before writing Bicep:
 | Connection | Exact requested relationship name and source; projection use if relied upon |
 
 Every row must map to emitted Bicep and a real consumer. A declared but unused variable, connection, or resource does not close the row.
+
+Before writing Bicep, enumerate every planned resource property read and write as a separate ledger row. Record the verbatim path and prove it against the exact configured extension schema and API version. For a generated output, also prove that the selected recipe maps that output. For a managed secret, prove the declared managed-secret name path and key; the key declaration is metadata, not a readable secret value. When `properties.secrets` declares the output contract, the consumer row must use that managed secret name and verified key directly through `secretKeyRef`; any row that reads the key as a resource property or copies it into an authored secret fails preflight.
+
+Reject the model before generation if any schema path is absent or any generated output cannot be reconciled with the recipe. Do not repair a missing output by guessing a direct convenience property, choosing a similarly named alias, or copying it through an authored secret wrapper. Compilation is a downstream confirmation, not the discovery mechanism for property paths.
 
 ## Inventory each workload
 
@@ -117,10 +122,11 @@ Before returning the model:
 
 1. Account for every required app-native environment/config input or document an intentional source default.
 2. Close every explicit acceptance criterion in the requirement ledger; preserve required literal values and exact relationship names.
-3. Confirm every secret uses the exact supported secret path and is not exposed through plain state.
-4. Confirm every declared port matches a configured process listener.
-5. Confirm every command/argument and generated config file is compatible with the image entrypoint and available binaries.
-6. Confirm every writable/persistent path has the required ownership and access mode.
-7. Confirm every connection is consumed by source or intentionally retained because the selected profile requires Radius relationship metadata.
-8. Confirm the complete dependency tuple for every edge, including provider-specific endpoint transformations, TLS, auth, and final client syntax.
-9. Confirm each workload's primary feature is ready and every selected typed resource is used by that feature.
+3. Reject every resource property read/write that lacks a closed ledger row proving its exact schema path and, for generated outputs, its recipe mapping.
+4. Confirm every secret uses the exact supported secret path and is not exposed through plain state.
+5. Confirm every declared port matches a configured process listener.
+6. Confirm every command/argument and generated config file is compatible with the image entrypoint and available binaries.
+7. Confirm every writable/persistent path has the required ownership and access mode.
+8. Confirm every connection is consumed by source or intentionally retained because the selected profile requires Radius relationship metadata.
+9. Confirm the complete dependency tuple for every edge, including provider-specific endpoint transformations, TLS, auth, and final client syntax.
+10. Confirm each workload's primary feature is ready and every selected typed resource is used by that feature.

@@ -2,10 +2,15 @@
 name: app-modeling
 description: >
   Analyze a source code repository and generate a Radius application
-  definition (.radius/app.bicep). Use when asked to create an application
-  definition, model an application for Radius, or generate a Radius Bicep
-  file. Resolves the configured Radius schemas and the application's runtime
-  contract to produce validated, deployable output.
+  definition (.radius/app.bicep) that models the app's compute and backing
+  services as Radius resource types. Use for: creating, generating, or
+  updating a Radius application definition or app.bicep; modeling or
+  onboarding an app or repo to Radius; determining which Radius resource
+  types an app needs; repairing or fixing an app.bicep that failed to
+  deploy because of a modeling or schema error. Do not use for: authoring
+  generic or Azure Bicep unrelated to Radius, or deploying or running an
+  already-modeled app. Resolves the configured Radius schemas and the
+  application's runtime contract to produce validated, deployable output.
 ---
 
 # Radius Application Modeling
@@ -45,6 +50,16 @@ Before writing the Bicep:
 - **No decorative wiring:** Environment variables, connections, and resources must be consumed by the selected feature path. Merely declaring a dependency or starting a process does not prove the requested database, model, storage, or messaging path works.
 - **Infer only when unspecified:** Without an explicit profile, prefer a complete, documented manifest/configuration that exercises the application's primary feature. If multiple materially different profiles remain valid, ask the user rather than choosing an optional backend arbitrarily.
 - **Fail closed on verified incompatibility:** Fully implement every clearly supported criterion. Stop only after evidence proves the pinned source or exact schema/recipe cannot satisfy a requirement; do not return a partial definition as deployable or leave unresolved runtime caveats.
+
+### Repairing an existing app.bicep
+
+When a deploy fails because of a modeling or schema error in an existing `.radius/app.bicep` (unknown type or API version, unknown or missing property, invalid reference between resources, wrong credential shape, or a Bicep parse or compile error), repair the file in place instead of regenerating it. This assumes the deploy error and any relevant logs have been provided; if they haven't, ask for them before attempting a fix.
+
+1. Confirm whether the failure comes from the application model. If it is an infrastructure, recipe, Environment, or cluster failure (for example, recipe download/execution or provider provisioning), stop and report that editing `app.bicep` will not fix it. A pod that never becomes ready is not enough to classify the failure: inspect events and logs to distinguish infrastructure/connectivity failures from incorrect workload configuration, listeners, credentials, or dependency wiring in `app.bicep`.
+2. Locate the implicated resource, property, or workload setting, then re-resolve the exact configured type schema and recipe output contract (see [Resource Type Resolution](#resource-type-resolution)) to confirm property names, required fields, credential shape, API version, and resource reference paths.
+3. Apply the fix using the same runtime-contract, naming, structure, and secrets rules as authoring so the repaired resource stays consistent with the rest of the file. While you are in the file, also correct any other clear schema or rule violations you notice, and report each collateral fix you made.
+4. Re-run the [validation checklist](#validation-checklist) against the whole file; a change in one resource can ripple to connections or references elsewhere.
+5. Return the corrected file with a short note of what changed and why, then suggest redeploying to confirm the fix. If the same error recurs, treat the previous fix as insufficient and try a different fix rather than reapplying the one that just failed. If a couple of different fixes still do not resolve it, or no different fix can be found, stop and surface the problem to the user instead of looping.
 
 ## Deterministic Naming Rules
 

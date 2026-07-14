@@ -11,6 +11,8 @@ For every secret, inspect:
 3. the exact `Radius.Security/secrets` and `Radius.Compute/containers` schemas for authored-secret and `secretKeyRef` support; and
 4. the application source for the final native variable/configuration name and required format.
 
+Also preserve any explicit profile requirement that a particular native key use `secretKeyRef`. Binding the same value under a helper name does not satisfy a workload that reads the required key directly.
+
 Never hardcode passwords, tokens, keys, or credential-bearing URLs. Use a `@secure()` parameter for developer-supplied Bicep inputs, but do not mistake that decorator for end-to-end secret handling: it protects parameter treatment and display, not every downstream resource property or container `env.value`.
 
 ## Developer-supplied secret inputs
@@ -21,7 +23,7 @@ Follow the exact resource schema:
 - If it defines a secret reference such as `secretName`, author the supported secret resource and reference it exactly as the schema requires.
 - If it defines no credential input, do not invent one.
 
-When the application also needs a developer-supplied credential, prefer an authored `Radius.Security/secrets` binding and consume it through `secretKeyRef` rather than assigning the secure parameter to plain `env.value`:
+When the application also needs a developer-supplied credential, author a supported `Radius.Security/secrets` binding and consume it through `secretKeyRef` rather than assigning the secure parameter to plain `env.value`. A sensitive property used to provision a resource is not automatically available to the workload:
 
 ```bicep
 @secure()
@@ -74,7 +76,7 @@ Some recipes generate sensitive values such as access keys, URLs, or connection 
 - another version may use a different output shape or key names; or
 - the configured recipe may not expose the value in a form containers can bind.
 
-Use a managed-secret `secretKeyRef` only when the exact schema and recipe establish its resource path and key. For example, if that version explicitly defines `properties.secrets.name` and an `apiKey` key, those exact fields may be referenced. Do not assume that path is universal, do not guess a key, and do not expect a sensitive value in generic connection projection.
+Use a managed-secret `secretKeyRef` only when the exact schema and recipe establish its resource path and key. For example, if that version explicitly defines `properties.secrets.name` and an `apiKey` key, those exact fields may be referenced. Bind a complete managed URL/connection string directly to the app-native key when its format already matches the pinned source. Do not assume that path is universal, do not guess a key, and do not expect a sensitive value in generic connection projection.
 
 If the exact contract cannot deliver a required secret by reference, report the schema/recipe gap rather than placing it in plain state.
 
@@ -84,7 +86,8 @@ Applications often require one URL or config value that embeds a secret. Bicep i
 
 1. Bind the secret into a helper environment variable with `secretKeyRef`.
 2. Bind nonsecret host, port, database, and username values from verified outputs or literals.
-3. Compose the final app-native value in the container runtime or let the application construct it.
+3. Declare the helper before dependent values when the runtime requires ordering.
+4. Compose the final app-native value in the container runtime or let the application construct it. The final key and syntax must exactly match the selected pinned-source contract.
 
 For a non-URL format, the pattern can look like:
 
@@ -112,6 +115,8 @@ Credentials embedded in URLs must be URL-encoded. Kubernetes variable expansion 
 
 - The input property, secret resource, managed-secret path, and key all exist in the exact configured schemas and recipe.
 - Every container variable uses the exact native name and format read by source.
+- Every profile-required secret environment key uses `valueFrom.secretKeyRef` on that exact key.
 - No secret is hardcoded, interpolated into a plain Bicep value, or assumed to appear in generic connection variables.
 - `@secure()` values flow only through properties marked sensitive or supported secret resources.
 - Runtime composition preserves dependency order, escaping, encoding, and image entrypoint behavior.
+- A final credential-bearing URL/config is either bound directly from a matching managed secret or composed at runtime from secret references; it is never reconstructed in Bicep plain state.

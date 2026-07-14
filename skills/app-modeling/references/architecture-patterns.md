@@ -25,6 +25,7 @@ Batch or streaming ETL, analytics, and data processing.
 - **Typical components**: batch container + object storage + an event stream.
 - **Radius types**: `Radius.Compute/containers` (with `restartPolicy: 'OnFailure'`/`'Never'` for batch) + `Radius.Storage/objectStorage` + `Radius.Messaging/kafka` when used.
 - **Runtime check**: distinguish a genuine application role from a one-shot connectivity or migration probe; do not turn verification into a long-running process.
+- **Readiness check**: a configurable engine needs a complete source and sink. Model each required producer/consumer or input/output role and ensure the process loads the generated configuration; an empty or placeholder pipeline is not functional.
 - **Gap**: distributed processing (Spark) has no Radius type yet — recognize and report the gap.
 
 ### Real-time
@@ -45,6 +46,7 @@ LLM inference, vector search, and model-backed features.
 - **Signals**: LLM SDKs (`openai`, `anthropic`, `@google/generative-ai`, LangChain); embeddings/vector clients; search clients.
 - **Typical components**: container + an LLM model endpoint + a search index + secure API-key binding + optionally a database for embeddings.
 - **Radius types**: `Radius.Compute/containers` + `Radius.AI/models` + `Radius.AI/search` (+ `Radius.Security/secrets` only for developer-supplied app secrets, and `Radius.Data/postgreSqlDatabases` when Postgres is the store).
+- **Readiness check**: when the selected profile requires inference, configure at least one usable source-supported model alias/provider route with its exact endpoint, key, and API/protocol version. A proxy UI or metadata database without a model route is not inference-ready.
 - **Gap**: dedicated vector databases and pgvector's vector features aren't modeled — use Postgres for storage and report the vector gap.
 
 ### IoT

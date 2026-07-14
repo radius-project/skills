@@ -1,115 +1,62 @@
 # Example: Todo-List-App (dockersamples/todo-list-app)
 
+This example records the reasoning and acceptance checks rather than a complete
+`app.bicep`, so its resource names and values are not copied into unrelated
+applications.
+
+## Selected profile
+
+The requested profile runs the application with MySQL instead of its default
+SQLite path. The source supports that profile when `MYSQL_HOST` is present, so
+the SQLite default does not override the explicit selection.
+
+| Acceptance criterion | Source/schema-backed decision |
+|---|---|
+| MySQL backing service | Emit the exact configured `Radius.Data/mySqlDatabases` type |
+| Source-built workload | Use the complete Dockerfile context at an immutable source ref |
+| Native database contract | Supply `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASSWORD`, and `MYSQL_DB` |
+| Runtime secret | Bind `MYSQL_PASSWORD` through an authored secret and `secretKeyRef` |
+| Listener | Expose the source-configured port 3000 |
+
 ## Source analysis
 
 - **Role**: long-running Node.js/Express web service
 - **Listener**: port 3000, configured by the application
 - **Persistence**: SQLite by default; MySQL when `MYSQL_HOST` is present
-- **Native configuration read by source**: `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASSWORD`, `MYSQL_DB`
+- **Native configuration read by source**: `MYSQL_HOST`, `MYSQL_USER`,
+  `MYSQL_PASSWORD`, `MYSQL_DB`
 - **Backing service**: MySQL 8.0 with database `todos`
 - **Image**: complete Dockerfile/build context, pinned to an immutable source commit
-- **Storage**: the modeled MySQL service owns persistence; no application filesystem volume is required
+- **Storage**: the modeled MySQL service owns persistence; no application
+  filesystem volume is required
 - **Primary pattern**: Web App
 
-## Key decisions
+## Modeling decisions
 
-1. The unmodified source does not parse Radius generic `CONNECTION_*` variables, so the container maps every required native MySQL variable explicitly.
-2. `mysqlDb.properties.host` is a nonsecret read-only output confirmed in the exact MySQL schema. Referencing it creates the database dependency edge.
-3. The developer-supplied password enters through `@secure()` and the MySQL schema's sensitive `password` property. A `Radius.Security/secrets` resource also exposes it to the workload through `secretKeyRef`; it is not assigned to plain `env.value`.
-4. A generic connection is omitted because the source does not consume it and direct references already establish ordering.
-5. The source build is consumed through `todoImage.properties.imageReference`.
-6. `containerPort: 3000` matches the inspected process listener. No route is added because external ingress was not requested.
+1. The explicit MySQL profile selects the optional source-supported MySQL path;
+   do not fall back to SQLite merely because it is the application default.
+2. Resolve the MySQL type, API version, credential inputs, and `host` output
+   against the exact configured extension and recipe.
+3. Map all four native variables. A generic connection does not invent these
+   application-specific names.
+4. Pass the developer-supplied password to the schema's sensitive resource
+   property from `@secure()`, and separately expose it to the workload through a
+   supported `Radius.Security/secrets` resource and `secretKeyRef`.
+5. Referencing the image, MySQL host, and runtime secret creates dependency
+   ordering. Omit a generic connection unless the request explicitly requires
+   Radius relationship metadata or the source consumes its exact projection.
+6. Consume the source build through the image resource's verified
+   `properties.imageReference`.
+7. Match `containerPort` to the inspected process listener. Do not add a route
+   unless external ingress is requested.
 
-## Expected app.bicep
+## Completion checks
 
-```bicep
-extension radius
-
-param environment string
-
-@secure()
-param mysqlPassword string
-
-var databaseName = 'todos'
-var databaseUsername = 'myadmin'
-
-resource todoApp 'Radius.Core/applications@2025-08-01-preview' = {
-  name: 'todo-list-app'
-  properties: {
-    environment: environment
-  }
-}
-
-resource mysqlDb 'Radius.Data/mySqlDatabases@2025-08-01-preview' = {
-  name: 'mysql'
-  properties: {
-    environment: environment
-    application: todoApp.id
-    database: databaseName
-    version: '8.0'
-    username: databaseUsername
-    password: mysqlPassword
-  }
-}
-
-resource mysqlRuntimeSecret 'Radius.Security/secrets@2025-08-01-preview' = {
-  name: 'mysql-runtime-secret'
-  properties: {
-    environment: environment
-    application: todoApp.id
-    data: {
-      MYSQL_PASSWORD: {
-        value: mysqlPassword
-      }
-    }
-  }
-}
-
-resource todoImage 'Radius.Compute/containerImages@2025-08-01-preview' = {
-  name: 'todo-list-app-image'
-  properties: {
-    environment: environment
-    application: todoApp.id
-    build: {
-      source: 'git::https://github.com/dockersamples/todo-list-app.git?ref=5a6fbf5caf982f1d928fe6c1c32aa74f1e95e063'
-    }
-  }
-}
-
-resource todoContainer 'Radius.Compute/containers@2025-08-01-preview' = {
-  name: 'todo-list-app'
-  properties: {
-    environment: environment
-    application: todoApp.id
-    containers: {
-      todo: {
-        image: todoImage.properties.imageReference
-        ports: {
-          web: {
-            containerPort: 3000
-          }
-        }
-        env: {
-          MYSQL_HOST: {
-            value: mysqlDb.properties.host
-          }
-          MYSQL_USER: {
-            value: databaseUsername
-          }
-          MYSQL_PASSWORD: {
-            valueFrom: {
-              secretKeyRef: {
-                secretName: mysqlRuntimeSecret.name
-                key: 'MYSQL_PASSWORD'
-              }
-            }
-          }
-          MYSQL_DB: {
-            value: databaseName
-          }
-        }
-      }
-    }
-  }
-}
-```
+- The selected MySQL type and source-built workload are both emitted.
+- Every required native variable appears with exact spelling and format.
+- The workload password uses `secretKeyRef`; no password is hardcoded or placed
+  in a plain environment value.
+- The process listener, image entrypoint, and database name/version agree with
+  the pinned source.
+- The definition compiles against the exact configured extension and has no
+  unresolved runtime caveat.

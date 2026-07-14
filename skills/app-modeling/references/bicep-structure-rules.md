@@ -11,6 +11,7 @@ These rules apply to all generated `app.bicep` files. Resolve property names and
 - The `@<apiVersion>` shown in the examples below (e.g. `2025-08-01-preview`) is illustrative — use the API version from each type's schema
 - All output files go in `.radius/` directory
 - Compile with the repository's exact configured extension and resolve unknown type/property warnings before returning
+- Emit every exact type, workload role, native key/value, secret binding, and relationship required by the selected compatible deployment profile
 
 ## Radius.Compute/containers structure
 
@@ -64,6 +65,56 @@ Rules:
 - `command` replaces the image `ENTRYPOINT`, and `args` replaces `CMD`; override only after inspecting the image contract and required binaries
 - Never **set** a read-only property. Referencing a read-only output is valid only when the exact schema exposes it and the configured recipe populates it
 - A direct resource output, image, or secret reference creates dependency ordering; `connections` is not mandatory for ordering
+- Include every co-scheduled role required by the selected profile in the `containers` map. A producer, consumer, proxy, worker, or sidecar must have its own complete image/process/configuration entry
+- A startup-generated config file is valid only when the pinned image contains the shell/tools, the destination is writable, interpolation is safe, and the process is explicitly launched with that file
+
+### Config file delivery
+
+Prefer a complete config already included by the source build. When an unmodified image needs an external config file and the exact schemas support it, a mounted `Radius.Security/secrets` resource avoids assuming the image has a shell:
+
+```bicep
+resource runtimeConfig 'Radius.Security/secrets@2025-08-01-preview' = {
+  name: 'runtime-config'
+  properties: {
+    environment: environment
+    application: app.id
+    data: {
+      'app.yaml': {
+        value: '''
+<complete source-supported configuration>
+'''
+      }
+    }
+  }
+}
+
+resource workload 'Radius.Compute/containers@2025-08-01-preview' = {
+  name: 'workload'
+  properties: {
+    environment: environment
+    application: app.id
+    containers: {
+      app: {
+        image: '<pinned-image>'
+        args: ['--config', '/etc/app/app.yaml']
+        volumeMounts: [
+          {
+            volumeName: 'config'
+            mountPath: '/etc/app'
+          }
+        ]
+      }
+    }
+    volumes: {
+      config: {
+        secretName: runtimeConfig.name
+      }
+    }
+  }
+}
+```
+
+Confirm the mounted filename, process argument, and secret/container schemas at the configured versions. Keep credentials out of the file when it can reference environment variables; bind those variables separately with `secretKeyRef`. Use startup generation only when mounting cannot satisfy the source contract and the image's shell, tools, writable path, expansion, and final command are all verified.
 
 ## Radius.Compute/containerImages structure
 
@@ -116,6 +167,7 @@ Rules:
 - Do NOT set readOnly properties (`host`, `port`, `connectionString`) — these are recipe outputs
 - A nonsecret read-only output such as `host`, `port`, or `endpoint` may be referenced for app-native wiring only when the exact schema and recipe expose it
 - Resolve sensitive outputs from the exact schema and recipe. If that version exposes a managed secret, consume the declared path/key through `valueFrom.secretKeyRef`; do not assume one universal `properties.secrets` shape. See [secrets-handling.md](secrets-handling.md)
+- A selected resource is incomplete until a workload's primary feature consumes its exact subresource, endpoint, protocol/TLS/auth settings, and secret contract
 
 ## Radius.Security/secrets structure
 
@@ -193,6 +245,8 @@ Do not use branch refs or `latest` when an immutable commit, tag, or digest is a
 - Model web, worker, producer, consumer, init, and one-shot roles according to their actual lifecycle.
 - Preserve image entrypoint behavior unless a required override is verified. Confirm any shell, templating command, or helper binary exists in the image.
 - Model writable and persistent paths with the ownership and access mode required by the process.
+- Preserve exact required provider literals and nested configuration keys from an explicit compatible profile. A complete FQDN, TLS/SASL/encryption setting, model alias, or config-file stanza is application runtime wiring, not provider provisioning.
+- Do not return an idle default, placeholder config, or UI-only process when the selected profile requires a functioning model route, remote storage backend, database connection, or message pipeline.
 - Follow [runtime-contract.md](runtime-contract.md) for the full consistency pass.
 
 ## Application/provider boundary

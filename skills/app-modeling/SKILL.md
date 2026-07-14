@@ -27,18 +27,30 @@ Don't create the pull request automatically — wait for the user to confirm. If
 
 Before writing the Bicep:
 
-1. Inventory every executable workload and backing service from manifests, Dockerfiles, compose files, entrypoints, source configuration reads, and client initialization. Treat web, worker, migration, scheduler, and sidecar roles separately.
-2. Extract a runtime contract for each workload: image/build context, entrypoint and arguments, listener and ports, required environment/configuration, secrets, writable storage, dependencies, and wire protocols. Follow [runtime-contract.md](references/runtime-contract.md).
-3. Map backing services to Radius types with [component-catalog.md](references/component-catalog.md), using [architecture-patterns.md](references/architecture-patterns.md) only as context. Report unsupported essential components instead of substituting unrelated types.
-4. Inspect the repository's `bicepconfig.json` and resolve every emitted type against the exact configured Radius extension. Use the matching `resource-types-contrib` schema revision and the target Environment's recipe/output contract when available; do not copy shapes from another version.
-5. Choose a source build only when the repository has a complete, practical build context. Otherwise use a pinned published image. Follow [bicep-structure-rules.md](references/bicep-structure-rules.md).
-6. Map every required runtime value using [connection-conventions.md](references/connection-conventions.md) and [secrets-handling.md](references/secrets-handling.md). A generic Radius connection is sufficient only when the source consumes the exact generic contract supplied by the configured version.
-7. Generate the Bicep using [naming-conventions.md](references/naming-conventions.md), then compile it with the exact configured extension. Treat unknown type/property warnings as unresolved schema mismatches.
-8. Perform the [validation checklist](#validation-checklist), including a static consistency pass against every workload's runtime contract. Compilation alone is not success.
+1. Select one runnable deployment profile. Treat explicit user or scenario requirements for Radius types, workload roles/count, native configuration keys, secret bindings, provider profile, protocol values, and connection names as acceptance criteria. Verify that the pinned source supports that profile; do not silently replace it with an easier default or optional backend.
+2. Build an internal requirement ledger that maps every acceptance criterion to source evidence, an exact Radius schema/recipe field, and the workload setting that consumes it. Use it for reasoning and validation; do not print it or add it as Bicep comments. Follow [runtime-contract.md](references/runtime-contract.md).
+3. Inventory every executable workload and backing service in the selected profile from manifests, Dockerfiles, compose/Helm files, entrypoints, source configuration reads, client initialization, and referenced config files. Treat web, worker, producer, consumer, migration, scheduler, and sidecar roles separately.
+4. Extract each workload's runtime contract: image/build context, entrypoint and arguments, listener and ports, required environment/configuration, secrets, writable storage, dependencies, wire protocols, and feature-critical configuration.
+5. Map every selected backing service to a Radius type with [component-catalog.md](references/component-catalog.md), using [architecture-patterns.md](references/architecture-patterns.md) only as context. Report unsupported essential components instead of substituting unrelated types.
+6. Inspect the repository's `bicepconfig.json` and resolve every emitted type against the exact configured Radius extension. Use the matching `resource-types-contrib` schema revision and target Environment recipe/output contract; do not copy shapes from another version.
+7. Choose a source build only when the repository has a complete, practical build context. Otherwise use a pinned published image. Map every runtime value using [connection-conventions.md](references/connection-conventions.md), [secrets-handling.md](references/secrets-handling.md), and [bicep-structure-rules.md](references/bicep-structure-rules.md).
+8. Generate the Bicep using [naming-conventions.md](references/naming-conventions.md), then compile it with the exact configured extension. Treat unknown type/property warnings as unresolved schema mismatches.
+9. Perform the [validation checklist](#validation-checklist) and close every item in the requirement ledger. Compilation or process startup alone is not success.
+
+## Deployment Profile and Acceptance Contract
+
+- **Explicit profile wins:** If the request names a supported Radius type, provider profile, workload role, native key, protocol value, secret binding, or relationship, model it exactly when the pinned source supports it. A source default or another valid deployment profile does not satisfy that request.
+- **Source compatibility is still mandatory:** Resolve behavior from the requested commit/tag, not a different release or the current default branch. If an acceptance criterion conflicts with that source revision, stop and report the conflict instead of inventing compatibility.
+- **No implicit omissions:** Each required typed resource must be emitted and wired to a consumer. Each required workload role must have a runnable process and complete config. Each required native key/value must appear in the exact source-supported location and format.
+- **No decorative wiring:** Environment variables, connections, and resources must be consumed by the selected feature path. Merely declaring a dependency or starting a process does not prove the requested database, model, storage, or messaging path works.
+- **Infer only when unspecified:** Without an explicit profile, prefer a complete, documented manifest/configuration that exercises the application's primary feature. If multiple materially different profiles remain valid, ask the user rather than choosing an optional backend arbitrarily.
+- **Fail closed on verified incompatibility:** Fully implement every clearly supported criterion. Stop only after evidence proves the pinned source or exact schema/recipe cannot satisfy a requirement; do not return a partial definition as deployable or leave unresolved runtime caveats.
 
 ## Deterministic Naming Rules
 
 These rules eliminate ambiguity. Apply them exactly.
+
+Explicit profile-required resource, relationship, and app-native configuration names take precedence over the default naming rules below. Never normalize a name the selected runtime contract requires verbatim.
 
 ### Symbolic names (left side of `=` in Bicep)
 
@@ -124,7 +136,7 @@ Do NOT use any type not listed above. Do NOT invent properties.
 
 ## Extension
 
-Declare exactly one extension, `extension radius`. It provides every Radius type (`Radius.Core/*`, `Radius.Compute/*`, `Radius.Data/*`, `Radius.Messaging/*`, `Radius.AI/*`, `Radius.Security/*`). Do NOT declare per-namespace or per-type extensions (`radiusCompute`, `containers`, `kafka`, etc.). The alias must resolve through the target repository's existing configuration; do not silently add or replace `bicepconfig.json`. Prefer an immutable extension reference when configuration is in scope.
+Declare exactly one extension, `extension radius`. It provides every Radius type (`Radius.Core/*`, `Radius.Compute/*`, `Radius.Data/*`, `Radius.Messaging/*`, `Radius.AI/*`, `Radius.Storage/*`, `Radius.Security/*`). Do NOT declare per-namespace or per-type extensions (`radiusCompute`, `containers`, `kafka`, etc.). The alias must resolve through the target repository's existing configuration; do not silently add or replace `bicepconfig.json`. Prefer an immutable extension reference when configuration is in scope.
 
 ## app.bicep Structure (mandatory order)
 
@@ -140,7 +152,7 @@ Declare resources in this order (do NOT output this as code — it is only for y
 8. Routes (only if external ingress needed)
 
 Rules:
-- One `Radius.Compute/containers` per container service; one `Radius.Data/*` per backing data store (engine/instance-derived symbolic name).
+- One `Radius.Compute/containers` per deployment unit; its `containers` map must include every co-scheduled role required by that unit. Separate independently deployed services into separate resources. Create one typed resource per selected backing service.
 - Building from a complete Dockerfile context: add a `Radius.Compute/containerImages` resource with `build.source` set to the repo git URL (`git::https://github.com/<org>/<repo>.git//<subdir>?ref=<sha-or-tag>`); the container references the built image via `<serviceName>Image.properties.imageReference` (no separate connection needed).
 - Database credentials follow the type's schema: if it defines `username`/`password`, set them on the resource; if it defines `secretName`, create a `Radius.Security/secrets` and reference it; if it defines neither, the type takes no credentials. Always use a `@secure() param` for the password.
 - Add `Radius.Compute/routes` only for external ingress.
@@ -155,6 +167,7 @@ Rules:
 - Generic projection can be a `CONNECTION_<NAME>_PROPERTIES` JSON value, individual `CONNECTION_<NAME>_<PROPERTY>` values, or another version-specific shape. Verify the configured extension/runtime contract; do not assume one format.
 - Use a connection alone only when the application explicitly consumes that applicable generic contract. Otherwise map each required native input explicitly from a verified nonsecret resource output, a secret reference, a literal/default, or runtime composition.
 - A direct resource property or secret reference creates dependency ordering. Do not add a connection merely for ordering; retain one only when the application/tooling consumes the relationship.
+- An explicit request for Radius relationship metadata is a valid reason to retain a connection. Use the exact requested connection key and `source`; explicit native wiring may still be required for the workload.
 - Explicit native variables may coexist with generic projection. Avoid conflicting values, and use `disableDefaultEnvVars` only when the exact container schema supports it and the generic variables would be harmful.
 
 ## Secrets
@@ -172,17 +185,19 @@ Read [bicep-structure-rules.md](references/bicep-structure-rules.md) for all str
 ## Validation Checklist
 
 Before returning the Bicep, verify:
+- [ ] One deployment profile is selected. Every explicit type, workload role/count, native key, required value, secret binding, and connection name from the request is represented in a closed requirement ledger.
 - [ ] Exactly one `Radius.Core/applications@2025-08-01-preview`, and one `extension radius` (no per-namespace or per-type extensions).
 - [ ] The file compiles with the target repository's exact configured extension; every `Radius.*` type is on the allow-list and matches that version's schema and API version. Unknown type/property warnings are resolved, not ignored.
 - [ ] `param environment string` is declared; add a `@secure() param` for each developer-supplied secret.
-- [ ] Every executable workload has the correct role, image/build, entrypoint/arguments, listener, exposed ports, environment/configuration, writable storage, and restart behavior. `containerPort` matches the process; it does not configure the listener.
-- [ ] Every required app-native input is supplied with the exact name, casing, type, URL/config syntax, and intentional default found in source. Each declared generic connection is actually consumable by that source.
+- [ ] Every required executable role is modeled, including co-scheduled producer/consumer or proxy/backend roles. Its image/build, entrypoint/arguments, listener, exposed ports, config artifacts, writable storage/ownership, and lifecycle are correct. `containerPort` matches the process; it does not configure the listener.
+- [ ] Every required app-native input is supplied with the exact pinned-source name, casing, type, URL/config syntax, and value. Each declared generic connection is consumed by source or explicitly required as relationship metadata.
 - [ ] A source build has a complete practical Dockerfile/context and uses an immutable ref; otherwise the published image is pinned. Generated builds are consumed through `.properties.imageReference`.
 - [ ] Credentials match the type's schema: `username`+`password` on the resource, or `secretName`+secret, or none — whichever the schema defines. Password via `@secure() param`; `database`/`topic`/`queue`/etc. derived from source.
-- [ ] Every secret follows the exact schema/recipe contract and uses `secretKeyRef` where supported. No secret is hardcoded or accidentally moved into plain state; runtime-composed values preserve ordering, escaping, and required encoding.
+- [ ] Every runtime secret follows the exact schema/recipe contract and reaches the exact native key through `secretKeyRef` where supported. A sensitive resource input is not assumed to be readable by the container. No secret is hardcoded or moved into plain state; runtime composition preserves ordering, escaping, and required encoding.
 - [ ] Read-only properties are never **set**. A referenced nonsecret output exists in the exact schema and recipe; a referenced secret path/key exists in the exact secret-output contract. Such direct references provide dependency ordering.
-- [ ] Provider behavior matches the client: FQDN, TLS, port, auth mode, protocol/version, connection-string syntax, and network access are verified. Provider modules, SKUs, regions, and firewall configuration remain outside `app.bicep`.
-- [ ] A health endpoint is not treated as proof of dependency connectivity; perform the static consistency pass in [runtime-contract.md](references/runtime-contract.md).
+- [ ] Every dependency has a complete client tuple: subresource name, endpoint/FQDN transformation, port, protocol/version, TLS mode, auth mechanism/identity, secret source, and final client syntax. Provider modules, SKUs, regions, and firewall configuration remain outside `app.bicep`.
+- [ ] Primary-feature readiness is proven: required model aliases, storage backends, database clients, and messaging inputs/outputs are configured and reference the selected resources. A health endpoint or idle/placeholder process is not sufficient.
+- [ ] Perform the static consistency pass in [runtime-contract.md](references/runtime-contract.md); no unresolved runtime caveat remains.
 - [ ] The generated Bicep contains no explanatory comments and does not add `bicepconfig.json`.
 
 ## Example

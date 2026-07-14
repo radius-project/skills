@@ -76,7 +76,24 @@ Some recipes generate sensitive values such as access keys, URLs, or connection 
 - another version may use a different output shape or key names; or
 - the configured recipe may not expose the value in a form containers can bind.
 
-Use a managed-secret `secretKeyRef` only when the exact schema and recipe establish its resource path and key. For example, if that version explicitly defines `properties.secrets.name` and an `apiKey` key, those exact fields may be referenced. Bind a complete managed URL/connection string directly to the app-native key when its format already matches the pinned source. Do not assume that path is universal, do not guess a key, and do not expect a sensitive value in generic connection projection.
+When the exact schema and recipe declare managed-secret metadata, that is the only supported projection path:
+
+```bicep
+APP_API_KEY: {
+  valueFrom: {
+    secretKeyRef: {
+      secretName: service.properties.secrets.name
+      key: 'apiKey'
+    }
+  }
+}
+```
+
+The names are illustrative. `properties.secrets.name` identifies the managed `Radius.Security/secrets` resource, while other fields declared under `properties.secrets` name keys stored in that resource. They are metadata, not secret values readable from `service.properties.apiKey` or `service.properties.secrets.apiKey`.
+
+Bind a complete managed URL/connection string directly to the app-native key when its format matches the pinned source. Never create an authored `Radius.Security/secrets` wrapper whose `data` copies a recipe-generated value from a resource property. An authored secret is not an adapter for a missing or different output shape.
+
+Do not assume one universal `properties.secrets` path or guess a key. If the exact schema/recipe does not expose the required managed-secret reference and key, report the gap. If a mutable compiled extension disagrees with that exact contract, report version drift rather than inventing a convenience property or wrapper.
 
 If the exact contract cannot deliver a required secret by reference, report the schema/recipe gap rather than placing it in plain state.
 
@@ -116,6 +133,8 @@ Credentials embedded in URLs must be URL-encoded. Kubernetes variable expansion 
 - The input property, secret resource, managed-secret path, and key all exist in the exact configured schemas and recipe.
 - Every container variable uses the exact native name and format read by source.
 - Every profile-required secret environment key uses `valueFrom.secretKeyRef` on that exact key.
+- Recipe-generated secrets bind directly from the exact declared managed-secret name and key.
+- No authored secret `data.value` references a recipe resource output or guessed convenience property.
 - No secret is hardcoded, interpolated into a plain Bicep value, or assumed to appear in generic connection variables.
 - `@secure()` values flow only through properties marked sensitive or supported secret resources.
 - Runtime composition preserves dependency order, escaping, encoding, and image entrypoint behavior.

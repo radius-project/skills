@@ -166,7 +166,7 @@ Rules:
 - Developer-facing props (`database`, `version`, `size`, `topic`, `queue`, `container`) are derived from source — do NOT hardcode; only set properties the schema defines
 - Do NOT set readOnly properties (`host`, `port`, `connectionString`) — these are recipe outputs
 - A nonsecret read-only output such as `host`, `port`, or `endpoint` may be referenced for app-native wiring only when the exact schema and recipe expose it
-- Resolve sensitive outputs from the exact schema and recipe. If that version exposes a managed secret, consume the declared path/key through `valueFrom.secretKeyRef`; do not assume one universal `properties.secrets` shape. See [secrets-handling.md](secrets-handling.md)
+- Resolve sensitive outputs from the exact schema and recipe. If that version exposes managed-secret metadata, bind its declared name/key directly through `valueFrom.secretKeyRef`; never copy the value into an authored secret or guess a sibling convenience property. Do not assume one universal `properties.secrets` shape. See [secrets-handling.md](secrets-handling.md)
 - A selected resource is incomplete until a workload's primary feature consumes its exact subresource, endpoint, protocol/TLS/auth settings, and secret contract
 
 ## Radius.Security/secrets structure
@@ -193,8 +193,9 @@ resource dbSecret 'Radius.Security/secrets@2025-08-01-preview' = {
 ```
 
 Rules:
-- Use only when the exact schema supports it: for a type's required secret input, app secrets, or a secure runtime binding for a developer-supplied credential
-- Do not re-author a recipe-generated output when the exact contract already delivers it through a managed secret
+- Use only when the exact schema supports it: for a type's required secret input, app secrets/config files, or a secure runtime binding for a developer-supplied credential
+- Do not re-author a recipe-generated output. Bind directly from its schema-declared managed secret, or report that the exact contract cannot supply it
+- Never set authored secret `data.value` from a recipe resource's sensitive output or a guessed convenience property
 - NEVER hardcode passwords — use `@secure() param`
 - `data` is an object map, NOT an array
 - Keys in `data` must match their exact consumer or schema contract; do not impose universal casing

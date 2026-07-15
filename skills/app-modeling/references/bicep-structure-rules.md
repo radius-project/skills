@@ -6,11 +6,11 @@ These rules apply to all generated `app.bicep` files. Resolve property names and
 
 - `extension radius` is the only extension line and comes first (it provides every Radius type; no per-namespace or per-type extensions)
 - `param environment string` always declared
-- A `@secure()` parameter is declared for each developer-supplied secret
+- A `@secure()` parameter is declared for each developer-supplied secret; every sensitive value (password, connection string, API key, token, or similar credential) must use `@secure() param` — never a plain `param string` or a literal
 - Exactly ONE `Radius.Core/applications@2025-08-01-preview` resource
 - The `@<apiVersion>` shown in the examples below (e.g. `2025-08-01-preview`) is illustrative — use the API version from each type's schema
 - All output files go in `.radius/` directory
-- Compile with the repository's exact configured extension and resolve unknown type/property warnings before returning
+- Compile with `az bicep build` using the repository's exact configured extension; any warning or error is a validation failure. A `use-secure-value-for-secure-inputs` warning means a schema-sensitive property received a non-`@secure()` value — fix it before returning. Surface all diagnostics to the user.
 - Emit every exact type, workload role, native key/value, secret binding, and relationship required by the selected compatible deployment profile
 
 ## Radius.Compute/containers structure

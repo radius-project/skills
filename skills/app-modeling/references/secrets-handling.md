@@ -136,6 +136,8 @@ Credentials embedded in URLs must be URL-encoded. Kubernetes variable expansion 
 - Recipe-generated secrets bind directly from the exact declared managed-secret name and key.
 - No authored secret `data.value` references a recipe resource output or guessed convenience property.
 - No secret is hardcoded, interpolated into a plain Bicep value, or assumed to appear in generic connection variables.
+- Every developer-supplied sensitive value (password, connection string, API key, token, or similar credential) is declared as `@secure() param` — never as a plain `param string` and never as a literal. Passing a non-`@secure()` value to a schema-sensitive property causes a `use-secure-value-for-secure-inputs` Bicep warning, which is a validation failure.
 - `@secure()` values flow only through properties marked sensitive or supported secret resources.
 - Runtime composition preserves dependency order, escaping, encoding, and image entrypoint behavior.
 - A final credential-bearing URL/config is either bound directly from a matching managed secret or composed at runtime from secret references; it is never reconstructed in Bicep plain state.
+- Bicep compilation (`az bicep build`) emits no warnings or errors; a `use-secure-value-for-secure-inputs` warning is a failure and must be reported to the user with the full diagnostic output.

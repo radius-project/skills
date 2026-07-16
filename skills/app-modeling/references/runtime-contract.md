@@ -73,6 +73,8 @@ Do not leave a required input implicit because a resource is connected. A direct
 
 An authored secret containing a Bicep interpolation that constructs a credential-bearing aggregate value is not runtime composition, regardless of where its nonsecret parts originate. For a workload that accepts only one credential-bearing URL/config value, prove an exact managed-secret output or a runtime encoder/composer before generation. Reject the model when neither exists; do not convert a compile-time expression into `Radius.Security/secrets.data.value` and call it deployable.
 
+Before accepting aggregate composition, inspect source-native decomposed CLI flags, structured options, and config fields. Prefer separate host, port, database, username, password, and TLS inputs when the application uses them to construct its client value with the correct escaping/encoding. Binding a secret helper and passing it through a verified source-native password option is not the same as constructing a URL in Bicep.
+
 ## Prove each dependency client tuple
 
 For every workload-to-resource edge, account for all applicable fields:
@@ -95,6 +97,8 @@ A resource output named `host` may be only one segment of the endpoint. A type n
 - `containerPort` exposes a network endpoint; it does not change the process listener. Set the app's listener configuration when its default differs.
 - Kubernetes `command` replaces the image `ENTRYPOINT`; `args` replaces `CMD`. Preserve the image defaults unless an inspected runtime contract requires an override.
 - Before using shell-based runtime composition, confirm the image contains that shell and every invoked binary.
+- A shell expansion is not URL encoding. Do not assume an unconstrained password is URL-safe; prove the runtime encoder or use source-native decomposed inputs that perform the encoding.
+- A BuildKit Git context omits `.git` by default. When the Dockerfile copies `.git` or a required build step invokes Git metadata, require schema-supported `BUILDKIT_CONTEXT_KEEP_GIT_DIR=1`; otherwise reject the source build or choose a pinned published image.
 - Ensure config/data paths are writable for the image user. Add persistent storage only when state must survive restarts.
 - Keep migrations and verification probes distinct from the long-running application. Use an init role only when the application genuinely requires it.
 - When a selected profile requires multiple roles, model every role and its complete command/configuration. Do not collapse producer and consumer behavior into an idle process.
@@ -133,3 +137,5 @@ Before returning the model:
 9. Confirm the complete dependency tuple for every edge, including provider-specific endpoint transformations, TLS, auth, and final client syntax.
 10. Confirm each workload's primary feature is ready and every selected typed resource is used by that feature.
 11. Confirm every aggregate credential-bearing URL/config is produced by an exact managed-secret output or a verified runtime encoder/composer, never by interpolation inside an authored secret.
+12. Confirm source-native decomposed connection inputs were considered before aggregate composition and no credential character-set assumption substitutes for encoding.
+13. Confirm every source build receives required Git metadata and other nondefault context inputs.

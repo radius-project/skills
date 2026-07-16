@@ -128,6 +128,10 @@ Kubernetes expands `$(VAR_NAME)` only from variables declared earlier in the env
 
 Credentials embedded in URLs must be URL-encoded. Kubernetes variable expansion does not encode them; use application logic or a verified runtime helper. If safe encoding cannot be guaranteed, do not generate a fragile connection string.
 
+Do not assume a developer-supplied `string` password is URL-safe, recommend a restricted generator such as hexadecimal as a workaround, or document that assumption as a deployment caveat. The model must accept every value permitted by the source and schema.
+
+Before composing an aggregate value, inspect whether the application accepts decomposed connection inputs as CLI flags, structured config, or other native fields. Prefer those inputs when the application itself performs the required encoding. A verified shell may pass a secret helper to a native password flag, but shell expansion alone does not encode a credential for insertion into a URL.
+
 ### Authored secrets are not composition engines
 
 `Radius.Security/secrets` can carry an exact developer-supplied scalar credential to a workload. It does not turn Bicep interpolation into runtime composition. Never build an aggregate value such as a database URL in `data.value`, regardless of whether its nonsecret parts come from outputs, parameters, variables, or literals:
@@ -160,4 +164,5 @@ If none applies, report the schema/application contract gap and do not emit a de
 - No secret is hardcoded, interpolated into a plain Bicep value, or assumed to appear in generic connection variables.
 - `@secure()` values flow only through properties marked sensitive or supported secret resources.
 - Runtime composition preserves dependency order, escaping, encoding, and image entrypoint behavior.
+- An unconstrained credential is never assumed to be URL-safe; source-native decomposed inputs are preferred when they avoid aggregate encoding.
 - A final credential-bearing URL/config is either bound directly from a matching managed secret or composed at runtime from secret references; it is never reconstructed in Bicep plain state.

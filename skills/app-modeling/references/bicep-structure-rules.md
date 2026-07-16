@@ -136,6 +136,7 @@ Rules:
 - The image is BUILT from `build.source` — there is NO `image` property and NO `param image string`
 - `build.source` is the repo git URL: `git::https://github.com/<org>/<repo>.git//<subdir>?ref=<sha-or-tag>`. Omit `//<subdir>` when the build context is the repo root; pin `?ref=` to a commit SHA or release tag for reproducible builds
 - Optional `build.dockerfile` (path to the Dockerfile relative to the source; defaults to `Dockerfile`) and optional `build.platforms`
+- Inspect the Dockerfile and required build commands for Git metadata. BuildKit Git contexts omit `.git` by default; when the build copies `.git` or invokes Git for required metadata, set `build.args.BUILDKIT_CONTEXT_KEEP_GIT_DIR: '1'` only after verifying `build.args` in the exact schema. If that argument cannot be supplied, use a pinned published image or report the packaging gap
 - `tag` is optional — pin it to a SHA/immutable tag, otherwise the recipe computes a content-addressable digest
 - The container references the built image via `<serviceName>Image.properties.imageReference`; this reference creates the dependency edge, so NO separate connection to the image is needed
 - Use `containerImages` only when the source includes a complete, practical Dockerfile and build context. Do not invent a wrapper build merely to avoid a maintained published image

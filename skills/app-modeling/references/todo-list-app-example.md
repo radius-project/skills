@@ -14,8 +14,10 @@ the SQLite default does not override the explicit selection.
 |---|---|
 | MySQL backing service | Emit the exact configured `Radius.Data/mySqlDatabases` type |
 | Source-built workload | Use the complete Dockerfile context at an immutable source ref |
+| Image tag | Set the pinned source commit as the tag because the selected Recipe's omitted-tag path is broken |
+| Build platform | Override the incompatible multi-platform Recipe default with `linux/amd64` |
 | Native database contract | Supply `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASSWORD`, and `MYSQL_DB` |
-| Runtime secret | Bind `MYSQL_PASSWORD` through an authored secret and `secretKeyRef` |
+| Developer-supplied credential | Set `MYSQL_PASSWORD` from the same `@secure()` password parameter through `env.value` |
 | Listener | Expose the source-configured port 3000 |
 
 ## Source analysis
@@ -27,6 +29,11 @@ the SQLite default does not override the explicit selection.
   `MYSQL_PASSWORD`, `MYSQL_DB`
 - **Backing service**: MySQL 8.0 with database `todos`
 - **Image**: complete Dockerfile/build context, pinned to an immutable source commit
+- **Image Recipe behavior**: its omitted-tag path fails, so the source commit is
+  also the Docker-valid tag
+- **Build behavior**: the Dockerfile runs Node, npm, and node-gyp in target-image
+  stages and has no `BUILDPLATFORM`/`TARGETARCH` cross-build strategy, so the
+  build targets only the supported `linux/amd64` deployment platform
 - **Storage**: the modeled MySQL service owns persistence; no application
   filesystem volume is required
 - **Primary pattern**: Web App
@@ -40,22 +47,29 @@ the SQLite default does not override the explicit selection.
 3. Map all four native variables. A generic connection does not invent these
    application-specific names.
 4. Pass the developer-supplied password to the schema's sensitive resource
-   property from `@secure()`, and separately expose it to the workload through a
-   supported `Radius.Security/secrets` resource and `secretKeyRef`.
-5. Referencing the image, MySQL host, and runtime secret creates dependency
+   property from a `@secure()` parameter, and assign that same parameter directly
+   to the workload's `MYSQL_PASSWORD` `env.value`. Radius encrypts and injects
+   it, so no wrapper secret or `secretKeyRef` is needed.
+5. Referencing the image and MySQL host creates dependency
    ordering. Omit a generic connection unless the request explicitly requires
    Radius relationship metadata or the source consumes its exact projection.
-6. Consume the source build through the image resource's verified
-   `properties.imageReference`.
-7. Match `containerPort` to the inspected process listener. Do not add a route
+6. Set the image `tag` to the pinned source commit because the exact Recipe's
+   omitted-tag path is broken, and set `build.platforms` to `['linux/amd64']`
+   instead of inheriting its incompatible multi-platform default. Consume the
+   source build through the verified `properties.imageReference`.
+7. Verify that the target Environment registers Recipes for MySQL,
+   containerImages, and containers.
+8. Match `containerPort` to the inspected process listener. Do not add a route
    unless external ingress is requested.
 
 ## Completion checks
 
 - The selected MySQL type and source-built workload are both emitted.
 - Every required native variable appears with exact spelling and format.
-- The workload password uses `secretKeyRef`; no password is hardcoded or placed
-  in a plain environment value.
+- The workload password uses the same `@secure()` parameter through
+  `env.value`; no password is hardcoded and no authored wrapper secret exists.
+- The image has a Docker-valid immutable tag and targets only `linux/amd64`.
+- The target Environment registers every Recipe required by the model.
 - The process listener, image entrypoint, and database name/version agree with
   the pinned source.
 - The definition compiles against the exact configured extension and has no

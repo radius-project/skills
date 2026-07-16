@@ -18,3 +18,4 @@
 - Resource `name` properties (string values) are always kebab-case
 - Map keys inside `containers`, `ports`, and `volumes` are camelCase; `connections` keys are lowercase (engine + role)
 - Never use spaces, underscores, or special characters in any name
+- Explicit deployment-contract names and parameters take precedence over defaults. Preserve a documented resource-name parameter when a target Environment Recipe or verification couples it to a provider resource with naming or uniqueness constraints.

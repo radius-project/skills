@@ -33,12 +33,12 @@ Create a requirement ledger before writing Bicep:
 | Workload role | Runnable image process and complete feature configuration |
 | Native key/value | Pinned-source read and exact expected format/value |
 | Secret binding | Exact managed/authored secret resource path and key |
-| Provider behavior | Exact recipe output plus endpoint, protocol, TLS, and auth transformation |
+| Provider behavior | Exact Environment recipe or provider recipe-pack artifact and revision, verbatim output mapping, plus endpoint, protocol, TLS, and auth transformation |
 | Connection | Exact requested relationship name and source; projection use if relied upon |
 
 Every row must map to emitted Bicep and a real consumer. A declared but unused variable, connection, or resource does not close the row.
 
-Before writing Bicep, enumerate every planned resource property read and write as a separate ledger row. Record the verbatim path and prove it against the exact configured extension schema and API version. For a generated output, also prove that the selected recipe maps that output. For a managed secret, prove the declared managed-secret name path and key; the key declaration is metadata, not a readable secret value. When `properties.secrets` declares the output contract, the consumer row must use that managed secret name and verified key directly through `secretKeyRef`; any row that reads the key as a resource property or copies it into an authored secret fails preflight.
+Before writing Bicep, enumerate every planned resource property read and write as a separate ledger row. Record the verbatim path and prove it against the exact configured extension schema and API version. For a generated output, open the exact Environment recipe or matching provider recipe-pack source and record the verbatim output mapping; a schema description or README claim does not prove that a deployed recipe returns the value. When an explicit provider profile has no Environment in the target repository, inspect that provider's recipe pack at the matching immutable `resource-types-contrib` revision. For a managed secret, prove the declared managed-secret name path and key; the key declaration is metadata, not a readable secret value. When `properties.secrets` declares the output contract, the consumer row must use that managed secret name and verified key directly through `secretKeyRef`; any row that reads the key as a resource property or copies it into an authored secret fails preflight.
 
 Reject the model before generation if any schema path is absent or any generated output cannot be reconciled with the recipe. Do not repair a missing output by guessing a direct convenience property, choosing a similarly named alias, or copying it through an authored secret wrapper. Compilation is a downstream confirmation, not the discovery mechanism for property paths.
 

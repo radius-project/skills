@@ -10,7 +10,7 @@ These rules apply to all generated `app.bicep` files. Resolve property names and
 - Exactly ONE `Radius.Core/applications@2025-08-01-preview` resource
 - The `@<apiVersion>` shown in the examples below (e.g. `2025-08-01-preview`) is illustrative — use the API version from each type's schema
 - All output files go in `.radius/` directory
-- Compile with the repository's exact configured extension and resolve unknown type/property warnings before returning
+- Compile with the repository's exact configured extension and return only with zero warnings and zero errors. A `use-secure-value-for-secure-inputs` warning is a failure, not a benign use of a secret resource for nonsecret data.
 - Emit every exact type, workload role, native key/value, secret binding, and relationship required by the selected compatible deployment profile
 
 ## Radius.Compute/containers structure
@@ -70,51 +70,25 @@ Rules:
 
 ### Config file delivery
 
-Prefer a complete config already included by the source build. When an unmodified image needs an external config file and the exact schemas support it, a mounted `Radius.Security/secrets` resource avoids assuming the image has a shell:
+Prefer complete configuration already included by the source build. Do not place literal nonsecret configuration in `Radius.Security/secrets.data`: its `value` is schema-sensitive and produces a `use-secure-value-for-secure-inputs` warning. A secret-backed mounted config is valid only when the complete file is itself supplied as a developer secret through an `@secure()` parameter.
+
+When the image requires generated nonsecret configuration, use startup generation only after proving the image contains the shell and utilities, the destination is writable by the image user, interpolation is safe, and the command explicitly launches the process with that file:
 
 ```bicep
-resource runtimeConfig 'Radius.Security/secrets@2025-08-01-preview' = {
-  name: 'runtime-config'
-  properties: {
-    environment: environment
-    application: app.id
-    data: {
-      'app.yaml': {
-        value: '''
+command: [
+  '/bin/sh'
+  '-c'
+  '''
+set -eu
+cat > /tmp/app.yaml <<'APP_CONFIG'
 <complete source-supported configuration>
+APP_CONFIG
+exec /app --config /tmp/app.yaml
 '''
-      }
-    }
-  }
-}
-
-resource workload 'Radius.Compute/containers@2025-08-01-preview' = {
-  name: 'workload'
-  properties: {
-    environment: environment
-    application: app.id
-    containers: {
-      app: {
-        image: '<pinned-image>'
-        args: ['--config', '/etc/app/app.yaml']
-        volumeMounts: [
-          {
-            volumeName: 'config'
-            mountPath: '/etc/app'
-          }
-        ]
-      }
-    }
-    volumes: {
-      config: {
-        secretName: runtimeConfig.name
-      }
-    }
-  }
-}
+]
 ```
 
-Confirm the mounted filename, process argument, and secret/container schemas at the configured versions. Keep credentials out of the file when it can reference environment variables; bind those variables separately with `secretKeyRef`. Use startup generation only when mounting cannot satisfy the source contract and the image's shell, tools, writable path, expansion, and final command are all verified.
+Use a path such as `/tmp` only when the image contract confirms it is writable. Do not assume a non-root image can write to `/etc`, an image work directory, or a newly mounted `emptyDir`; prove ownership and mode. Keep credentials out of generated files when the application can interpolate environment variables, and bind those variables separately with exact `secretKeyRef` entries.
 
 ## Radius.Compute/containerImages structure
 
@@ -136,6 +110,7 @@ Rules:
 - The image is BUILT from `build.source` — there is NO `image` property and NO `param image string`
 - `build.source` is the repo git URL: `git::https://github.com/<org>/<repo>.git//<subdir>?ref=<sha-or-tag>`. Omit `//<subdir>` when the build context is the repo root; pin `?ref=` to a commit SHA or release tag for reproducible builds
 - Optional `build.dockerfile` (path to the Dockerfile relative to the source; defaults to `Dockerfile`) and optional `build.platforms`
+- Inspect the exact recipe default for `platforms`. If it defaults to multiple architectures, do not omit `build.platforms` unless the Dockerfile supports every target. A Dockerfile that runs target-architecture binaries without `FROM --platform=$BUILDPLATFORM`, `TARGETARCH`, or another proved cross-build mechanism must use one deployment-supported platform explicitly.
 - `tag` is optional — pin it to a SHA/immutable tag, otherwise the recipe computes a content-addressable digest
 - The container references the built image via `<serviceName>Image.properties.imageReference`; this reference creates the dependency edge, so NO separate connection to the image is needed
 - Use `containerImages` only when the source includes a complete, practical Dockerfile and build context. Do not invent a wrapper build merely to avoid a maintained published image
@@ -245,7 +220,7 @@ Do not use branch refs or `latest` when an immutable commit, tag, or digest is a
 - Infer the listener address and port from the process/configuration, not only `EXPOSE`, compose mappings, or health checks.
 - Model web, worker, producer, consumer, init, and one-shot roles according to their actual lifecycle.
 - Preserve image entrypoint behavior unless a required override is verified. Confirm any shell, templating command, or helper binary exists in the image.
-- Model writable and persistent paths with the ownership and access mode required by the process.
+- Model writable and persistent paths with the ownership and access mode required by the process. Kubernetes `emptyDir` does not by itself prove non-root write access.
 - Preserve exact required provider literals and nested configuration keys from an explicit compatible profile. A complete FQDN, TLS/SASL/encryption setting, model alias, or config-file stanza is application runtime wiring, not provider provisioning.
 - Do not return an idle default, placeholder config, or UI-only process when the selected profile requires a functioning model route, remote storage backend, database connection, or message pipeline.
 - Follow [runtime-contract.md](runtime-contract.md) for the full consistency pass.

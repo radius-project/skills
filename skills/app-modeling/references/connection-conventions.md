@@ -72,6 +72,17 @@ This is a representative pattern, not a required variable naming scheme. Confirm
 
 Keep a connection alongside native variables when the source consumes generic values or the selected profile explicitly requires Radius relationship metadata. Explicit native variables are not categorically forbidden just because generic projection exists. Ensure duplicate names do not carry conflicting values.
 
+## Provider-backed abstractions
+
+The Radius type name describes developer intent; the selected recipe defines the concrete service contract. Resolve the application client against that concrete contract:
+
+- confirm the provider's wire protocol and select the matching source adapter;
+- transform namespace or account outputs into the complete endpoint only as the recipe and provider require;
+- bind every schema-declared managed secret directly from its exact secret name and key; and
+- inspect the secret value format before deciding how the application consumes it.
+
+For example, an Azure recipe can implement `Radius.Messaging/rabbitMQ` with Azure Service Bus. Service Bus speaks AMQP 1.0, not RabbitMQ's AMQP 0-9-1 protocol. Its `connectionString` is a provider string such as `Endpoint=...;SharedAccessKeyName=...;SharedAccessKey=...`, not an AMQP URL. A workload that expects separate AMQP endpoint and SASL fields must bind the managed connection string to a helper with `secretKeyRef`, extract the proved fields at runtime, and use the source's AMQP 1.0 adapter. Never read `CONNECTION_<NAME>_CONNECTIONSTRING` when the selected schema declares that value only under managed-secret metadata, even if a mutable or older extension exposes a direct property with the same name.
+
 ## Rules
 
 1. Never assume a connection invents app-specific variables, URLs, credentials, database names, or protocol settings.
@@ -83,3 +94,4 @@ Keep a connection alongside native variables when the source consumes generic va
 6. Treat case, number-to-string conversion, URL encoding, TLS mode, and protocol-specific formatting as part of the app's runtime contract.
 7. Preserve exact relationship names and provider/runtime values supplied by an explicit compatible profile; do not normalize them to generic defaults.
 8. Do not count a connected resource as used unless the selected feature path consumes its projection or explicit native wiring.
+9. A field named `connectionString` is opaque provider data until its grammar and the application's accepted input format are proved. Never pass it directly to a URL, password, host, or native connection field by name alone.

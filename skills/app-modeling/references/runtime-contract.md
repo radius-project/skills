@@ -49,12 +49,12 @@ Record this contract for every executable role:
 | Field | Questions to answer |
 |---|---|
 | Role | Long-running web service, worker, scheduler, migration/init job, sidecar, or one-shot CLI? |
-| Image | Complete source build or pinned published image? Which immutable commit, tag, or digest? |
+| Image | Complete source build or pinned published image? Which immutable commit, tag, or digest? Which platforms does the exact image recipe request by default, and can the Dockerfile build all of them? |
 | Process | What do the image entrypoint and command run? Is an override required and does the image contain the required executable or shell? |
 | Listener | Which address, port, and protocol does the process actually use? Which setting configures it? |
 | Configuration | Which exact environment variables, flags, files, nesting syntax, casing, version-specific names, and defaults are consumed? |
 | Dependencies | Which hosts, ports, database/topic/queue names, credentials, URLs, TLS modes, and protocol versions does the client require? |
-| Secrets | Which values are supplied by the developer and which are produced by a recipe? Can the container consume them by reference? |
+| Secrets | Which values are supplied by the developer and which are produced by a recipe? Can the container consume them by reference, and what is each value's exact provider format? |
 | Storage | Which paths must be writable or persistent? What ownership and access mode does the process require? |
 | Primary feature | What model route, storage backend, database client, input/output pipeline, or other config proves this role performs the requested function? |
 
@@ -93,7 +93,7 @@ A resource output named `host` may be only one segment of the endpoint. A type n
 - `containerPort` exposes a network endpoint; it does not change the process listener. Set the app's listener configuration when its default differs.
 - Kubernetes `command` replaces the image `ENTRYPOINT`; `args` replaces `CMD`. Preserve the image defaults unless an inspected runtime contract requires an override.
 - Before using shell-based runtime composition, confirm the image contains that shell and every invoked binary.
-- Ensure config/data paths are writable for the image user. Add persistent storage only when state must survive restarts.
+- Ensure config/data paths are writable for the image user. A new volume does not prove a non-root process can write its mount path; verify ownership and mode or use a source-proved writable path. Add persistent storage only when state must survive restarts.
 - Keep migrations and verification probes distinct from the long-running application. Use an init role only when the application genuinely requires it.
 - When a selected profile requires multiple roles, model every role and its complete command/configuration. Do not collapse producer and consumer behavior into an idle process.
 - If required configuration is not packaged in the image, generate or mount it only through a schema-supported mechanism. Validate the complete file syntax, expansion rules, destination ownership, and command that consumes it.
@@ -112,7 +112,7 @@ Do not count an empty default config, placeholder pipeline, admin UI startup, or
 
 ## Provider compatibility and ownership
 
-Inspect the concrete type, registered recipe, and client source together. Derive FQDN suffixes, TLS, ports, auth modes, connection-string formats, protocol compatibility, network/firewall requirements, and sensitive outputs from that contract. A type named Kafka or RabbitMQ may be backed by a managed service with a compatible surface; the client must support the actual protocol and authentication mode.
+Inspect the concrete type, registered recipe, and client source together. Derive FQDN suffixes, TLS, ports, auth modes, connection-string grammars, protocol compatibility, network/firewall requirements, and sensitive outputs from that contract. A type named Kafka or RabbitMQ may be backed by a managed service with a compatible surface; the client must support the actual protocol and authentication mode. Never infer that a provider `connectionString` is a URL or password from its name. Bind it by managed-secret reference, then parse or pass it only in the exact format the source supports.
 
 `app.bicep` owns developer intent and runtime wiring. Environment/provider Bicep owns recipe modules, SKUs, region, quota, firewall/network policy, and provider-output mapping. Add provider-specific values to the app model only when the application must consume them at runtime.
 
@@ -130,3 +130,4 @@ Before returning the model:
 8. Confirm every connection is consumed by source or intentionally retained because the selected profile requires Radius relationship metadata.
 9. Confirm the complete dependency tuple for every edge, including provider-specific endpoint transformations, TLS, auth, and final client syntax.
 10. Confirm each workload's primary feature is ready and every selected typed resource is used by that feature.
+11. Confirm source-build platforms match both the exact recipe defaults and the Dockerfile's architecture contract; explicitly narrow incompatible multi-platform defaults.

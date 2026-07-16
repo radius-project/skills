@@ -230,7 +230,7 @@ Rules:
 - Do NOT use `target`, `source`, `destination`, or `backend` — these do NOT exist
 - `rules` is the ONLY valid structure — array of objects with `matches` and `destinationContainer`
 - `destinationContainer` requires ALL THREE: `resourceId`, `containerName`, `containerPort`
-- Only add routes if external ingress is needed
+- Only add routes when the request, a deployment manifest, or source documentation explicitly requires public/external ingress. A listening HTTP server, REST endpoint, or health check alone does not justify a route
 
 ## Image resolution
 

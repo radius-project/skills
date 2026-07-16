@@ -17,7 +17,7 @@ Match by **wire protocol, not only a library or type name**: MariaDB clients can
 |---|---|---|
 | Long-running service / worker / job | app entry point; executable service in Dockerfile/compose; actual lifecycle | `Radius.Compute/containers` |
 | Build image from source | complete practical Dockerfile/build context; no preferable published image | `Radius.Compute/containerImages` |
-| External ingress | HTTP server with a verified listener that needs a public URL | `Radius.Compute/routes` |
+| External ingress | explicit public URL/ingress requirement in the request, deployment manifest, or source documentation; an HTTP listener or handlers alone are insufficient | `Radius.Compute/routes` |
 | Persistent volume | source writes durable data; compose volume; writable path and access mode | `Radius.Compute/persistentVolumes` |
 
 ## Backing services (Radius type available)

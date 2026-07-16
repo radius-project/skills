@@ -134,7 +134,7 @@ resource myImage 'Radius.Compute/containerImages@2025-08-01-preview' = {
 
 Rules:
 - The image is BUILT from `build.source` — there is NO `image` property and NO `param image string`
-- `build.source` is the repo git URL: `git::https://github.com/<org>/<repo>.git//<subdir>?ref=<sha-or-tag>`. Omit `//<subdir>` when the build context is the repo root; pin `?ref=` to a commit SHA or release tag for reproducible builds
+- `build.source` is the repo git URL: `git::https://github.com/<org>/<repo>.git//<subdir>?ref=<sha-or-tag>`. Omit `//<subdir>` when the build context is the repo root; pin `?ref=` to the exact checked-out source commit or an explicit immutable release tag. Never copy `main`, `edge`, or another mutable ref from an existing app definition, manifest, or example
 - Optional `build.dockerfile` (path to the Dockerfile relative to the source; defaults to `Dockerfile`) and optional `build.platforms`
 - `tag` is optional — pin it to a SHA/immutable tag, otherwise the recipe computes a content-addressable digest
 - The container references the built image via `<serviceName>Image.properties.imageReference`; this reference creates the dependency edge, so NO separate connection to the image is needed

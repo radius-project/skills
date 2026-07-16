@@ -128,6 +128,27 @@ Kubernetes expands `$(VAR_NAME)` only from variables declared earlier in the env
 
 Credentials embedded in URLs must be URL-encoded. Kubernetes variable expansion does not encode them; use application logic or a verified runtime helper. If safe encoding cannot be guaranteed, do not generate a fragile connection string.
 
+### Authored secrets are not composition engines
+
+`Radius.Security/secrets` can carry an exact developer-supplied scalar credential to a workload. It does not turn Bicep interpolation into runtime composition. Never build an aggregate value such as a database URL in `data.value`, regardless of whether its nonsecret parts come from outputs, parameters, variables, or literals:
+
+```bicep
+data: {
+  url: {
+    value: 'postgres://${username}:${password}@${database.properties.host}:5432/app'
+  }
+}
+```
+
+This assembles the value during deployment, cannot URL-encode an arbitrary credential, and may rely on outputs the selected recipe does not populate. Moving the expression into an authored secret does not close those runtime-contract gaps.
+
+When the application accepts only one credential-bearing URL or config value, choose exactly one proven path:
+
+1. Bind an exact, source-compatible connection string from schema-declared managed-secret metadata.
+2. Bind the parts separately and use a verified application, entrypoint, or helper that safely encodes and composes them at runtime.
+
+If none applies, report the schema/application contract gap and do not emit a definition described as deployable.
+
 ## Checklist
 
 - The input property, secret resource, managed-secret path, and key all exist in the exact configured schemas and recipe.
@@ -135,6 +156,7 @@ Credentials embedded in URLs must be URL-encoded. Kubernetes variable expansion 
 - Every profile-required secret environment key uses `valueFrom.secretKeyRef` on that exact key.
 - Recipe-generated secrets bind directly from the exact declared managed-secret name and key.
 - No authored secret `data.value` references a recipe resource output or guessed convenience property.
+- No authored secret `data.value` uses Bicep interpolation to manufacture an aggregate credential-bearing URL or config value.
 - No secret is hardcoded, interpolated into a plain Bicep value, or assumed to appear in generic connection variables.
 - `@secure()` values flow only through properties marked sensitive or supported secret resources.
 - Runtime composition preserves dependency order, escaping, encoding, and image entrypoint behavior.

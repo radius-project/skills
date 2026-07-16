@@ -71,6 +71,8 @@ For each required app-native input, choose exactly one supported source:
 
 Do not leave a required input implicit because a resource is connected. A direct property or secret reference creates a dependency edge without a connection.
 
+An authored secret containing a Bicep interpolation that constructs a credential-bearing aggregate value is not runtime composition, regardless of where its nonsecret parts originate. For a workload that accepts only one credential-bearing URL/config value, prove an exact managed-secret output or a runtime encoder/composer before generation. Reject the model when neither exists; do not convert a compile-time expression into `Radius.Security/secrets.data.value` and call it deployable.
+
 ## Prove each dependency client tuple
 
 For every workload-to-resource edge, account for all applicable fields:
@@ -130,3 +132,4 @@ Before returning the model:
 8. Confirm every connection is consumed by source or intentionally retained because the selected profile requires Radius relationship metadata.
 9. Confirm the complete dependency tuple for every edge, including provider-specific endpoint transformations, TLS, auth, and final client syntax.
 10. Confirm each workload's primary feature is ready and every selected typed resource is used by that feature.
+11. Confirm every aggregate credential-bearing URL/config is produced by an exact managed-secret output or a verified runtime encoder/composer, never by interpolation inside an authored secret.

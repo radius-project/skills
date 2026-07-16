@@ -78,6 +78,7 @@ Keep a connection alongside native variables when the source consumes generic va
 2. Never assume one universal JSON or scalar `CONNECTION_*` projection. Verify the target version.
 3. Sensitive outputs may be omitted from generic projection. Resolve and bind them through the exact secret contract described in [secrets-handling.md](secrets-handling.md).
    A sensitive app-native key must use an explicit `secretKeyRef` even when its name looks exactly like `CONNECTION_<NAME>_<PROPERTY>`; the matching connection does not project the secret. Bind a recipe-generated value directly from schema-declared managed-secret metadata, never through an authored wrapper or guessed resource property.
+   If a mutable local extension instead exposes that secret as a direct property, treat it as version drift. Do not delete the `secretKeyRef` or rely on the connection merely to make local compilation pass; compile with a verified compatible extension or report the mismatch.
 4. Reference a nonsecret read-only output only when the exact schema exposes it and the configured recipe populates it. Do not **set** read-only properties.
 5. Use `disableDefaultEnvVars` only on the connection entry, only when the exact container schema supports it, and only when generic projection would conflict with the application.
 6. Treat case, number-to-string conversion, URL encoding, TLS mode, and protocol-specific formatting as part of the app's runtime contract.

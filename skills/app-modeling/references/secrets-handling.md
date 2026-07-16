@@ -97,6 +97,8 @@ Do not assume one universal `properties.secrets` path or guess a key. If the exa
 
 If the exact contract cannot deliver a required secret by reference, report the schema/recipe gap rather than placing it in plain state.
 
+A conflicting mutable extension is not evidence that a target Recipe's managed secret will appear in generic connection variables. Never remove a verified `secretKeyRef` to satisfy that extension. Preserve the target deployment contract, resolve a compatible immutable extension for compilation, or stop with the mismatch unresolved.
+
 ## Runtime composition
 
 Applications often require one URL or config value that embeds a secret. Bicep interpolation would materialize the combined value before the container starts, so prefer runtime composition:
@@ -134,6 +136,7 @@ Credentials embedded in URLs must be URL-encoded. Kubernetes variable expansion 
 - Every container variable uses the exact native name and format read by source.
 - Every profile-required secret environment key uses `valueFrom.secretKeyRef` on that exact key.
 - Recipe-generated secrets bind directly from the exact declared managed-secret name and key.
+- A conflicting mutable extension never replaces a verified managed-secret binding with a direct property or generic connection projection.
 - No authored secret `data.value` references a recipe resource output or guessed convenience property.
 - No secret is hardcoded, interpolated into a plain Bicep value, or assumed to appear in generic connection variables.
 - `@secure()` values flow only through properties marked sensitive or supported secret resources.

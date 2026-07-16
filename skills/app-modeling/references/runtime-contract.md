@@ -49,14 +49,14 @@ Record this contract for every executable role:
 | Field | Questions to answer |
 |---|---|
 | Role | Long-running web service, worker, scheduler, migration/init job, sidecar, or one-shot CLI? |
-| Image | Complete source build or pinned published image? Which immutable commit, tag, or digest? |
+| Image | Complete source build or pinned published image? Which immutable commit, tag, or digest? Which target platforms does the selected image recipe build by default, and can this Dockerfile build all of them? |
 | Process | What do the image entrypoint and command run? Is an override required and does the image contain the required executable or shell? |
 | Listener | Which address, port, and protocol does the process actually use? Which setting configures it? |
-| Configuration | Which exact environment variables, flags, files, nesting syntax, casing, version-specific names, and defaults are consumed? |
+| Configuration | Which exact environment variables, flags, files, nesting syntax, casing, version-specific names, representations, parser coercions, unset behavior, and defaults are consumed? |
 | Dependencies | Which hosts, ports, database/topic/queue names, credentials, URLs, TLS modes, and protocol versions does the client require? |
 | Secrets | Which values are supplied by the developer and which are produced by a recipe? Can the container consume them by reference? |
 | Storage | Which paths must be writable or persistent? What ownership and access mode does the process require? |
-| Primary feature | What model route, storage backend, database client, input/output pipeline, or other config proves this role performs the requested function? |
+| Primary feature | What model route, storage backend, database client, input/output pipeline, authentication/bootstrap setup, or other config proves this role performs the requested function? |
 
 Model separate web, worker, producer, consumer, and init roles separately even when they share an image.
 
@@ -71,6 +71,8 @@ For each required app-native input, choose exactly one supported source:
 
 Do not leave a required input implicit because a resource is connected. A direct property or secret reference creates a dependency edge without a connection.
 
+Environment values are strings unless the exact container contract proves otherwise. Trace how source parses each value. Do not encode false as the non-empty string `'false'` when source uses truthiness such as `Boolean(value)`; omit the optional key or use the exact false representation the pinned source accepts.
+
 ## Prove each dependency client tuple
 
 For every workload-to-resource edge, account for all applicable fields:
@@ -79,7 +81,7 @@ For every workload-to-resource edge, account for all applicable fields:
 |---|---|
 | Resource/subresource | Exact database, topic, queue, container, model, or index selected by the profile |
 | Endpoint | Complete hostname/FQDN or URL, including any recipe-documented suffix/path transformation |
-| Port | Client port from the concrete provider profile, not only a generic resource name |
+| Port | Client port from an explicitly mapped recipe output or a provider-fixed literal proven by the concrete provider profile; schema presence alone is insufficient |
 | Protocol | Client wire protocol and version supported by the concrete backend |
 | Transport security | TLS mode, certificate behavior, and encryption flags expected by source |
 | Authentication | Mechanism, identity/username, and source-supported config syntax |
@@ -93,6 +95,7 @@ A resource output named `host` may be only one segment of the endpoint. A type n
 - `containerPort` exposes a network endpoint; it does not change the process listener. Set the app's listener configuration when its default differs.
 - Kubernetes `command` replaces the image `ENTRYPOINT`; `args` replaces `CMD`. Preserve the image defaults unless an inspected runtime contract requires an override.
 - Before using shell-based runtime composition, confirm the image contains that shell and every invoked binary.
+- Inspect the exact image recipe's default platforms. If it defaults to multiple architectures and the Dockerfile executes target-architecture binaries without `BUILDPLATFORM`/`TARGETARCH` cross-build support, set one target platform supported by the deployment profile instead of inheriting a build that will fail with `exec format error`.
 - Ensure config/data paths are writable for the image user. Add persistent storage only when state must survive restarts.
 - Keep migrations and verification probes distinct from the long-running application. Use an init role only when the application genuinely requires it.
 - When a selected profile requires multiple roles, model every role and its complete command/configuration. Do not collapse producer and consumer behavior into an idle process.
@@ -105,7 +108,7 @@ Process startup is insufficient for configurable proxies, gateways, file servers
 - a model-backed proxy has a usable model alias/provider route and endpoint/key/version wiring;
 - a stream or queue pipeline has complete input and output roles/configuration;
 - a storage-backed service configures the selected remote filesystem rather than leaving credential variables unused;
-- a database UI/client has a complete preconfigured native connection; and
+- a database UI/client has a complete preconfigured native connection and a usable authentication/bootstrap path for the selected profile; and
 - every generated config file is passed to the process that consumes it.
 
 Do not count an empty default config, placeholder pipeline, admin UI startup, or health endpoint as readiness.

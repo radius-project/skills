@@ -28,7 +28,7 @@ Create a requirement ledger before writing Bicep:
 
 | Criterion | Required evidence |
 |---|---|
-| Typed resource | Exact extension type/schema plus selected source adapter or client |
+| Typed resource | Exact extension type/schema, a usable recipe registered in the target Environment, and the selected source adapter or client |
 | Resource property reference | Verbatim read/write path in the exact schema/API version; recipe mapping when the value is generated |
 | Workload role | Runnable image process and complete feature configuration |
 | Native key/value | Pinned-source read and exact expected format/value |
@@ -36,7 +36,7 @@ Create a requirement ledger before writing Bicep:
 | Provider behavior | Exact recipe output plus endpoint, protocol, TLS, and auth transformation |
 | Connection | Exact requested relationship name and source; projection use if relied upon |
 
-Every row must map to emitted Bicep and a real consumer. A declared but unused variable, connection, or resource does not close the row.
+Every row must map to emitted Bicep and a real consumer. A declared but unused variable, connection, or resource does not close the row. A recipe present in a repository's default pack does not close the row for a custom target Environment; verify that Environment's actual recipe packs.
 
 Before writing Bicep, enumerate every planned resource property read and write as a separate ledger row. Record the verbatim path and prove it against the exact configured extension schema and API version. For a generated output, also prove that the selected recipe maps that output. For a managed secret, prove the declared managed-secret name path and key; the key declaration is metadata, not a readable secret value. When `properties.secrets` declares the output contract, the consumer row must use that managed secret name and verified key directly through `secretKeyRef`; any row that reads the key as a resource property or copies it into an authored secret fails preflight.
 
@@ -49,7 +49,7 @@ Record this contract for every executable role:
 | Field | Questions to answer |
 |---|---|
 | Role | Long-running web service, worker, scheduler, migration/init job, sidecar, or one-shot CLI? |
-| Image | Complete source build or pinned published image? Which immutable commit, tag, or digest? Do the recipe's requested/default platforms match the Dockerfile's cross-build behavior and target runtime? |
+| Image | Complete source build or pinned published image? Which immutable commit, tag, or digest? Does the exact recipe safely handle every omitted optional build property? Do its requested/default platforms match the Dockerfile's cross-build behavior and target runtime? |
 | Process | What do the image entrypoint and command run? Is an override required and does the image contain the required executable or shell? |
 | Listener | Which address, port, and protocol does the process actually use? Which setting configures it? |
 | Configuration | Which exact environment variables, flags, files, nesting syntax, casing, version-specific names, and defaults are consumed? |
@@ -92,6 +92,7 @@ A resource output named `host` may be only one segment of the endpoint. A type n
 
 - `containerPort` exposes a network endpoint; it does not change the process listener. Set the app's listener configuration when its default differs.
 - Kubernetes `command` replaces the image `ENTRYPOINT`; `args` replaces `CMD`. Preserve the image defaults unless an inspected runtime contract requires an override.
+- Optional schema fields still need a working recipe path. If omitting `tag` reaches an invalid null interpolation or another broken default in the exact image recipe, set a Docker-valid immutable tag derived from the pinned source ref instead.
 - Resolve the selected image recipe's platform default. A Dockerfile that runs package managers, compilers, or other target-architecture binaries without `BUILDPLATFORM`/`TARGETARCH` stages or verified emulation is not multi-platform capable; set an explicit target-compatible `build.platforms` list instead of accepting a multi-platform default.
 - Before using shell-based runtime composition, confirm the image contains that shell and every invoked binary.
 - Ensure config/data paths are writable for the image user. Add persistent storage only when state must survive restarts.
@@ -126,9 +127,10 @@ Before returning the model:
 3. Reject every resource property read/write that lacks a closed ledger row proving its exact schema path and, for generated outputs, its recipe mapping.
 4. Confirm every secret uses the exact supported secret path and is not exposed through plain state.
 5. Confirm every declared port matches a configured process listener.
-6. Confirm every source build's requested/default platforms match the Dockerfile's proven cross-build behavior and target runtime.
-7. Confirm every command/argument and generated config file is compatible with the image entrypoint and available binaries.
-8. Confirm every writable/persistent path has the required ownership and access mode.
-9. Confirm every connection is consumed by source or intentionally retained because the selected profile requires Radius relationship metadata.
-10. Confirm the complete dependency tuple for every edge, including provider-specific endpoint transformations, TLS, auth, and final client syntax.
-11. Confirm each workload's primary feature is ready and every selected typed resource is used by that feature.
+6. Confirm every source build either proves omitted optional properties work in the exact recipe or supplies valid explicit values.
+7. Confirm every source build's requested/default platforms match the Dockerfile's proven cross-build behavior and target runtime.
+8. Confirm every command/argument and generated config file is compatible with the image entrypoint and available binaries.
+9. Confirm every writable/persistent path has the required ownership and access mode.
+10. Confirm every connection is consumed by source or intentionally retained because the selected profile requires Radius relationship metadata.
+11. Confirm the complete dependency tuple for every edge, including provider-specific endpoint transformations, TLS, auth, and final client syntax.
+12. Confirm each workload's primary feature is ready and every selected typed resource is used by that feature.

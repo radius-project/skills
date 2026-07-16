@@ -7,7 +7,7 @@ A compiling `app.bicep` proves only that its syntax and resource shapes are acce
 Start with an explicit request or scenario contract, then inspect primary evidence before relying on prose documentation:
 
 1. Explicit profile: requested Radius types, provider/backend, workload roles/count, app-native keys, protocol/config values, secret bindings, and relationship names.
-2. Dockerfile and complete build context: stages, copied files, build arguments, `ENTRYPOINT`, `CMD`, `WORKDIR`, `USER`, installed shells/tools, and writable paths.
+2. Dockerfile and complete build context: stages, copied files, build arguments, target platforms, cross-build strategy, `ENTRYPOINT`, `CMD`, `WORKDIR`, `USER`, installed shells/tools, and writable paths.
 3. Compose/Helm/Kubernetes manifests: service roles, images, commands, environment, mounted config, ports, volumes, health checks, and dependency topology.
 4. Entrypoints and source: environment/config reads, defaults, client constructors, URL assembly, protocol options, listener address/port, migrations, and worker-versus-web behavior.
 5. Example configuration and documentation: use these to confirm source behavior, not to override pinned source or an explicit compatible profile.
@@ -49,7 +49,7 @@ Record this contract for every executable role:
 | Field | Questions to answer |
 |---|---|
 | Role | Long-running web service, worker, scheduler, migration/init job, sidecar, or one-shot CLI? |
-| Image | Complete source build or pinned published image? Which immutable commit, tag, or digest? |
+| Image | Complete source build or pinned published image? Which immutable commit, tag, or digest? Do the recipe's requested/default platforms match the Dockerfile's cross-build behavior and target runtime? |
 | Process | What do the image entrypoint and command run? Is an override required and does the image contain the required executable or shell? |
 | Listener | Which address, port, and protocol does the process actually use? Which setting configures it? |
 | Configuration | Which exact environment variables, flags, files, nesting syntax, casing, version-specific names, and defaults are consumed? |
@@ -92,6 +92,7 @@ A resource output named `host` may be only one segment of the endpoint. A type n
 
 - `containerPort` exposes a network endpoint; it does not change the process listener. Set the app's listener configuration when its default differs.
 - Kubernetes `command` replaces the image `ENTRYPOINT`; `args` replaces `CMD`. Preserve the image defaults unless an inspected runtime contract requires an override.
+- Resolve the selected image recipe's platform default. A Dockerfile that runs package managers, compilers, or other target-architecture binaries without `BUILDPLATFORM`/`TARGETARCH` stages or verified emulation is not multi-platform capable; set an explicit target-compatible `build.platforms` list instead of accepting a multi-platform default.
 - Before using shell-based runtime composition, confirm the image contains that shell and every invoked binary.
 - Ensure config/data paths are writable for the image user. Add persistent storage only when state must survive restarts.
 - Keep migrations and verification probes distinct from the long-running application. Use an init role only when the application genuinely requires it.
@@ -125,8 +126,9 @@ Before returning the model:
 3. Reject every resource property read/write that lacks a closed ledger row proving its exact schema path and, for generated outputs, its recipe mapping.
 4. Confirm every secret uses the exact supported secret path and is not exposed through plain state.
 5. Confirm every declared port matches a configured process listener.
-6. Confirm every command/argument and generated config file is compatible with the image entrypoint and available binaries.
-7. Confirm every writable/persistent path has the required ownership and access mode.
-8. Confirm every connection is consumed by source or intentionally retained because the selected profile requires Radius relationship metadata.
-9. Confirm the complete dependency tuple for every edge, including provider-specific endpoint transformations, TLS, auth, and final client syntax.
-10. Confirm each workload's primary feature is ready and every selected typed resource is used by that feature.
+6. Confirm every source build's requested/default platforms match the Dockerfile's proven cross-build behavior and target runtime.
+7. Confirm every command/argument and generated config file is compatible with the image entrypoint and available binaries.
+8. Confirm every writable/persistent path has the required ownership and access mode.
+9. Confirm every connection is consumed by source or intentionally retained because the selected profile requires Radius relationship metadata.
+10. Confirm the complete dependency tuple for every edge, including provider-specific endpoint transformations, TLS, auth, and final client syntax.
+11. Confirm each workload's primary feature is ready and every selected typed resource is used by that feature.

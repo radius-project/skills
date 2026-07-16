@@ -136,6 +136,7 @@ Rules:
 - The image is BUILT from `build.source` — there is NO `image` property and NO `param image string`
 - `build.source` is the repo git URL: `git::https://github.com/<org>/<repo>.git//<subdir>?ref=<sha-or-tag>`. Omit `//<subdir>` when the build context is the repo root; pin `?ref=` to a commit SHA or release tag for reproducible builds
 - Optional `build.dockerfile` (path to the Dockerfile relative to the source; defaults to `Dockerfile`) and optional `build.platforms`
+- Resolve the exact recipe's default platforms before omitting `build.platforms`. If it defaults to multiple architectures, use that default only when the Dockerfile is demonstrably cross-build capable (for example, build stages use `BUILDPLATFORM`/`TARGETARCH`) or the builder has verified emulation. A conventional Dockerfile that runs target-architecture package managers, compilers, or application binaries must set an explicit platform list supported by both the build and target runtime, such as `['linux/amd64']` for an amd64 deployment
 - `tag` is optional — pin it to a SHA/immutable tag, otherwise the recipe computes a content-addressable digest
 - The container references the built image via `<serviceName>Image.properties.imageReference`; this reference creates the dependency edge, so NO separate connection to the image is needed
 - Use `containerImages` only when the source includes a complete, practical Dockerfile and build context. Do not invent a wrapper build merely to avoid a maintained published image
@@ -235,7 +236,7 @@ Rules:
 ## Image resolution
 
 1. If the repo publishes a suitable image, use an immutable digest or pinned release tag directly.
-2. Otherwise, if a complete practical Dockerfile and build context exist, use `Radius.Compute/containerImages` with an immutable `build.source` ref.
+2. Otherwise, if a complete practical Dockerfile and build context exist, use `Radius.Compute/containerImages` with an immutable `build.source` ref and an explicit platform list whenever the recipe default is not proven compatible with the Dockerfile and target runtime.
 3. If neither path is viable, report the packaging gap instead of using a bare runtime base image or inventing a fragile build wrapper.
 
 Do not use branch refs or `latest` when an immutable commit, tag, or digest is available.

@@ -14,6 +14,7 @@ the SQLite default does not override the explicit selection.
 |---|---|
 | MySQL backing service | Emit the exact configured `Radius.Data/mySqlDatabases` type |
 | Source-built workload | Use the complete Dockerfile context at an immutable source ref |
+| Build platform | Override the recipe's multi-platform default with `linux/amd64` |
 | Native database contract | Supply `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASSWORD`, and `MYSQL_DB` |
 | Runtime secret | Bind `MYSQL_PASSWORD` through an authored secret and `secretKeyRef` |
 | Listener | Expose the source-configured port 3000 |
@@ -27,6 +28,10 @@ the SQLite default does not override the explicit selection.
   `MYSQL_PASSWORD`, `MYSQL_DB`
 - **Backing service**: MySQL 8.0 with database `todos`
 - **Image**: complete Dockerfile/build context, pinned to an immutable source commit
+- **Build behavior**: the Dockerfile runs Node, npm, and node-gyp in target-image
+  stages and has no `BUILDPLATFORM`/`TARGETARCH` cross-build strategy; the
+  containerImages recipe defaults to `linux/amd64` plus `linux/arm64` without
+  emulation
 - **Storage**: the modeled MySQL service owns persistence; no application
   filesystem volume is required
 - **Primary pattern**: Web App
@@ -45,14 +50,17 @@ the SQLite default does not override the explicit selection.
 5. Referencing the image, MySQL host, and runtime secret creates dependency
    ordering. Omit a generic connection unless the request explicitly requires
    Radius relationship metadata or the source consumes its exact projection.
-6. Consume the source build through the image resource's verified
-   `properties.imageReference`.
+6. Set `build.platforms` to `['linux/amd64']` for the amd64 target instead of
+   accepting the recipe's incompatible multi-platform default, then consume the
+   source build through the image resource's verified `properties.imageReference`.
 7. Match `containerPort` to the inspected process listener. Do not add a route
    unless external ingress is requested.
 
 ## Completion checks
 
 - The selected MySQL type and source-built workload are both emitted.
+- The image build requests only `linux/amd64`; it does not attempt the
+  unsupported arm64 target.
 - Every required native variable appears with exact spelling and format.
 - The workload password uses `secretKeyRef`; no password is hardcoded or placed
   in a plain environment value.

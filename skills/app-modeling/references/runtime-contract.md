@@ -21,7 +21,7 @@ Choose the runtime path before choosing resources:
 1. If the request supplies a profile, treat every named type, role, key, required value, secret binding, and connection as an acceptance criterion.
 2. Confirm the pinned source revision contains the adapter, client, configuration syntax, and image tools needed to implement that profile.
 3. Do not replace the requested profile with a source default or another supported backend. Defaults only resolve choices the request leaves open.
-4. If no profile is supplied, select a source-supported profile that exercises the primary feature through compatible first-class Radius types. Use a complete documented manifest/configuration to prove process behavior, but do not let optional infrastructure or an external credential example replace the primary typed dependency. Ask when materially different runnable primary-feature profiles remain.
+4. If no profile is supplied, select a source-supported profile that exercises the primary feature through compatible first-class Radius types. Use a complete documented manifest/configuration to prove process behavior, but do not let optional infrastructure or an external credential example replace the primary typed dependency. For a model gateway or proxy, require one complete model alias-to-provider route through a compatible `Radius.AI/models` resource; an optional database for keys, configuration, or usage is supporting infrastructure, not the primary feature. Ask when materially different runnable primary-feature profiles remain after applying the target Environment's compatible first-class Recipes.
 5. Stop when the requested profile is impossible for the pinned revision or exact Radius schema/recipe; do not emit a partial definition with a caveat.
 
 Create a requirement ledger before writing Bicep:
@@ -110,7 +110,7 @@ Process startup is insufficient for configurable proxies, gateways, file servers
 
 Do not count an empty default config, placeholder pipeline, admin UI startup, or health endpoint as readiness.
 
-For model gateways and proxies, apply [model-backed-proxies.md](model-backed-proxies.md). In particular, keep the application-facing alias, provider deployment identifier, and provisioned model identifier distinct, and prove each from source plus the concrete recipe.
+For model gateways and proxies, apply [model-backed-proxies.md](model-backed-proxies.md). In particular, keep the application-facing alias, provider deployment identifier, and provisioned model identifier distinct, and prove each from source plus the concrete recipe. Reject a profile that starts only the gateway process or its management database without configuring a usable model.
 
 ## Provider compatibility and ownership
 

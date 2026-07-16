@@ -2,6 +2,8 @@
 
 Model gateways and proxies need more than an endpoint and API key. Their configuration must identify the exact provider deployment that the selected Recipe creates. Treat a workload as a model gateway or proxy when it re-exposes model access or aliases to other clients, or rewrites client requests into provider-specific routing.
 
+A runnable default profile must configure at least one model route. When the request does not select a provider, use a compatible `Radius.AI/models` type and the target Environment's concrete default Recipe: take the provisioned model identifier from the exact schema default or another source-compatible schema value, and take the provider deployment identifier from the Recipe. Do not omit the model resource merely because a compose example leaves provider credentials to the developer. Do not substitute an optional gateway database for the inference route.
+
 ## Resolve distinct identifiers
 
 Keep these values separate in the requirement ledger:

@@ -126,9 +126,9 @@ resource myImage 'Radius.Compute/containerImages@2025-08-01-preview' = {
   properties: {
     environment: environment
     application: app.id
-    tag: 'v1.2.3'   // pin to a commit SHA or immutable tag; omit for a content-addressable digest
+    tag: 'v1.2.3'   // pin to a commit SHA or immutable tag
     build: {
-      source: 'git::https://github.com/<org>/<repo>.git//<subdir>?ref=<sha-or-tag>'
+      source: 'git::https://github.com/<org>/<repo>.git//?ref=<sha-or-tag>'
     }
   }
 }
@@ -136,9 +136,9 @@ resource myImage 'Radius.Compute/containerImages@2025-08-01-preview' = {
 
 Rules:
 - The image is BUILT from `build.source` — there is NO `image` property and NO `param image string`
-- `build.source` is the repo git URL: `git::https://github.com/<org>/<repo>.git//<subdir>?ref=<sha-or-tag>`. Omit `//<subdir>` when the build context is the repo root; pin `?ref=` to a commit SHA or release tag for reproducible builds
+- Use the canonical root form `git::https://github.com/<org>/<repo>.git//?ref=<sha-or-tag>`; for a subdirectory use `.git//<subdir>?ref=...`. Pin `?ref=` to a commit SHA or release tag for reproducible builds. The selected Recipe may normalize another root spelling, but generation should use these unambiguous forms consistently
 - Optional `build.dockerfile` (path to the Dockerfile relative to the source; defaults to `Dockerfile`) and optional `build.platforms`
-- `tag` is optional — pin it to a SHA/immutable tag, otherwise the recipe computes a content-addressable digest
+- Although the schema marks `tag` optional, set it to a valid immutable source tag or commit-derived tag unless the exact selected Recipe proves omission deploys. The current contrib Recipe interpolates its nullable tag in a precondition error path, so omitting it can fail before the computed fallback is usable
 - The container references the built image via `<serviceName>Image.properties.imageReference`; this reference creates the dependency edge, so NO separate connection to the image is needed
 - Use `containerImages` only when the source includes a complete, practical Dockerfile and build context. Do not invent a wrapper build merely to avoid a maintained published image
 - Registry credentials used to push a generated image are distinct from Kubernetes credentials used to pull it at runtime

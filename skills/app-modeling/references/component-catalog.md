@@ -9,6 +9,7 @@ Match by **wire protocol, not only a library or type name**: MariaDB clients can
 - An explicit compatible request for a Radius type selects that source-supported backend or feature even when it is optional or not the application's default.
 - Confirm the pinned source has the adapter/client and exact configuration path. Do not emit a requested type merely because the repository mentions it in unrelated tests or examples.
 - Without an explicit profile, prefer a source-supported profile that exercises the application's primary feature through compatible first-class Radius types. Use documented runtime manifests to prove workload behavior, but do not let an optional database, monitoring service, or external API-key example displace the primary typed dependency.
+- For a model gateway or proxy, detect LLM inference from its provider adapters, model-routing configuration, and OpenAI-compatible serving surface even when the checked-in compose file only enables an optional management database. Select a compatible `Radius.AI/models` route as the primary feature; add the database only when the chosen runnable profile requires persistence.
 - Every selected type must be used by a modeled workload's primary feature. A declared but unwired resource is not a detected component.
 
 ## Compute
@@ -32,7 +33,7 @@ Match by **wire protocol, not only a library or type name**: MariaDB clients can
 | Neo4j | `neo4j-driver` / `neo4j` / `Neo4j.Driver` / `neo4j` | `Radius.Data/neo4jDatabases` | Web App, AI/ML |
 | Kafka | `kafkajs`, `node-rdkafka` / `confluent-kafka`, `kafka-python` / `Confluent.Kafka` / `ruby-kafka` | `Radius.Messaging/kafka` | Microservices, Data Pipeline |
 | RabbitMQ / AMQP queue | `amqplib` / `pika`, `aio-pika` / `RabbitMQ.Client` / `bunny`; AMQP adapter/config selected by the profile | `Radius.Messaging/rabbitMQ` | Microservices, Enterprise |
-| LLM inference | `openai`, `@anthropic-ai/sdk`, `@google/generative-ai` / `openai`, `anthropic` / `Azure.AI.OpenAI`; proxy/provider config selected by the profile. For a model gateway, prefer a compatible `Radius.AI/models` profile over an external developer API key when it is the primary feature | `Radius.AI/models` | Web App, Microservices, AI/ML |
+| LLM inference | Provider SDKs/adapters; model-routing config; OpenAI-compatible gateway/proxy endpoints. A gateway's inference route is primary even when its example compose file emphasizes an optional management database | `Radius.AI/models` | Web App, Microservices, AI/ML |
 | Full-text / AI search | `@elastic/elasticsearch`, `@opensearch-project/opensearch` / `elasticsearch`, `opensearch-py` / `Azure.Search.Documents` | `Radius.AI/search` | Web App, Microservices, Data Pipeline, AI/ML |
 | Object storage (S3 / Blob / GCS) | SDK dependency, filesystem/backend adapter, compose/Helm config, or explicit compatible profile selecting remote object storage | `Radius.Storage/objectStorage` | Web App, Data Pipeline, AI/ML |
 | App secrets (API keys, tokens); DB creds when the schema uses `secretName` | env-injected secrets; API keys in config | `Radius.Security/secrets` | supporting |

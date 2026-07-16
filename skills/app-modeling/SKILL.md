@@ -21,12 +21,12 @@ Use this skill to generate a Radius application definition (`app.bicep`) from a 
 
 When asked to model a repository:
 
-1. Generate the application definition and write both `.radius/app.bicep` and `.radius/bicepconfig.json` (see [bicepconfig.json](#bicepconfigjson)) to the current working branch of the target repository.
-2. Commit both files to that branch, and push the branch when a remote is configured.
+1. Generate the application definition and write `.radius/app.bicep` to the current working branch of the target repository. Create or update `.radius/bicepconfig.json` only when an exact Radius extension reference is already configured or supplied (see [bicepconfig.json](#bicepconfigjson)).
+2. Commit the generated files to that branch, and push the branch when a remote is configured.
 3. In your chat reply, give a one-line intro naming the app (e.g. "I'll create an application definition for `todo-list-app`."), then a short, natural summary of the resources you identified — a brief list such as "Container: `todo-list-app`", "MySQL database", "Secret for DB credentials". A sentence or two of reasoning is fine; don't dump raw source analysis or the full file contents.
 4. Then ask whether to open a pull request against the default branch.
 
-Don't open the pull request automatically — wait for the user to confirm. If they confirm, open a PR from the working branch against the default branch with title `Add Radius application definition` and body `Add .radius/app.bicep and .radius/bicepconfig.json for <app-name>.`
+Don't open the pull request automatically — wait for the user to confirm. If they confirm, open a PR from the working branch against the default branch with title `Add Radius application definition` and body `Add .radius/app.bicep for <app-name>.` Mention `.radius/bicepconfig.json` only when it was also generated.
 
 ## Workflow
 
@@ -37,9 +37,9 @@ Before writing the Bicep:
 3. Inventory every executable workload and backing service in the selected profile from manifests, Dockerfiles, compose/Helm files, entrypoints, source configuration reads, client initialization, and referenced config files. Treat web, worker, producer, consumer, migration, scheduler, and sidecar roles separately.
 4. Extract each workload's runtime contract: image/build context, entrypoint and arguments, listener and ports, required environment/configuration, secrets, writable storage, dependencies, wire protocols, and feature-critical configuration.
 5. Map every selected backing service to a Radius type with [component-catalog.md](references/component-catalog.md), using [architecture-patterns.md](references/architecture-patterns.md) only as context. Report unsupported essential components instead of substituting unrelated types.
-6. First create or update `.radius/bicepconfig.json` (see [bicepconfig.json](#bicepconfigjson)), using any `bicepconfig.json` currently applicable to `.radius/app.bicep` as input. Then resolve every emitted type and planned property read/write against the Radius extension that `.radius/bicepconfig.json` declares. Record the verbatim property path and schema proof in the ledger; for recipe outputs, also prove the output mapping and any managed-secret key. Reject an absent path before generation instead of guessing an alias, convenience property, or wrapper. Use the matching `resource-types-contrib` schema revision and target Environment recipe/output contract; do not copy shapes from another version.
-7. Choose a source build only when the repository has a complete, practical build context. Otherwise use a pinned published image. Map every runtime value using [connection-conventions.md](references/connection-conventions.md), [secrets-handling.md](references/secrets-handling.md), and [bicep-structure-rules.md](references/bicep-structure-rules.md).
-8. Generate the Bicep using [naming-conventions.md](references/naming-conventions.md), then compile it with the exact configured extension. Treat unknown type/property warnings as unresolved schema mismatches.
+6. Establish one exact type contract before creating or updating `.radius/bicepconfig.json`: use the target Environment or scenario contract when supplied, otherwise use an immutable Radius extension artifact already applicable to `.radius/app.bicep`. A mutable reference such as `radius:latest` is not an exact contract and does not satisfy this step. These sources must agree when both exist. Resolve every emitted type and planned property read/write against that contract, including the matching `resource-types-contrib` schema revision, recipe output mapping, and managed-secret key. Never replace an immutable scenario contract with a mutable extension, and never change the model to fit a different locally cached extension. Reject an absent path before generation instead of guessing an alias, convenience property, or wrapper. See [bicepconfig.json](#bicepconfigjson) for the no-config case.
+7. Choose a source build only when the repository has a complete, practical build context. Otherwise use a pinned published image. For `Radius.Compute/containerImages`, resolve the exact recipe's default target platforms and inspect whether the Dockerfile can execute for each one. If a multi-platform build would execute target-architecture binaries without a verified cross-build strategy, set `build.platforms` to the known deployment architecture; if that architecture is unknown, stop rather than emit a build that can fail with `exec format error`. Map every runtime value using [connection-conventions.md](references/connection-conventions.md), [secrets-handling.md](references/secrets-handling.md), and [bicep-structure-rules.md](references/bicep-structure-rules.md).
+8. Generate the Bicep using [naming-conventions.md](references/naming-conventions.md), then compile it when the exact extension artifact is configured. Treat unknown type/property warnings as unresolved schema mismatches. When exact scenario schema/recipe revisions are supplied without an extension artifact, do not compile against a mutable or cached substitute; report that local compilation is unavailable and leave compilation to the target's exact external harness.
 9. Perform the [validation checklist](#validation-checklist) and close every item in the requirement ledger. Compilation or process startup alone is not success.
 
 ## Deployment Profile and Acceptance Contract
@@ -151,28 +151,18 @@ Do NOT use any type not listed above. Do NOT invent properties.
 
 ## Extension
 
-Declare exactly one extension, `extension radius`. It provides every Radius type (`Radius.Core/*`, `Radius.Compute/*`, `Radius.Data/*`, `Radius.Messaging/*`, `Radius.AI/*`, `Radius.Storage/*`, `Radius.Security/*`). Do NOT declare per-namespace or per-type extensions (`radiusCompute`, `containers`, `kafka`, etc.). The `radius` alias must resolve through `.radius/bicepconfig.json`, which the skill always creates or updates (see [bicepconfig.json](#bicepconfigjson)); only ever write that file, never a config outside `.radius/`.
+Declare exactly one extension, `extension radius`. It provides every Radius type (`Radius.Core/*`, `Radius.Compute/*`, `Radius.Data/*`, `Radius.Messaging/*`, `Radius.AI/*`, `Radius.Storage/*`, `Radius.Security/*`). Do NOT declare per-namespace or per-type extensions (`radiusCompute`, `containers`, `kafka`, etc.). The `radius` alias must resolve through the target's exact extension contract. Only write `.radius/bicepconfig.json`, never a config outside `.radius/`, and never point it at a different contract merely to make local compilation pass.
 
 ## bicepconfig.json
 
-`app.bicep` cannot compile or deploy unless a `bicepconfig.json` resolves the `radius` extension. Always create or update `.radius/bicepconfig.json` (co-located with `.radius/app.bicep`) so it fits the generated `app.bicep`; only ever write that file, never a `bicepconfig.json` outside `.radius/`.
+`app.bicep` needs a `bicepconfig.json` that resolves the same Radius extension contract used for schema and recipe resolution. Only create or update `.radius/bicepconfig.json` when that exact extension artifact reference is already configured or supplied by the user, target Environment, or scenario.
 
-- If `.radius/bicepconfig.json` already exists, update it to fit `app.bicep`: add or correct what `app.bicep` needs (the `radius` extension reference and `extensibility`), preserve unrelated existing settings, and change or remove entries only where they conflict with what `app.bicep` needs. An already-correct file produces an empty diff.
-- If it does not exist, create it. When a `bicepconfig.json` in a parent directory would otherwise be the config discovered for `.radius/app.bicep` (before you write `.radius/bicepconfig.json`), use it as input: seed the new file from its compatible settings and adjust so it fits `app.bicep` (add, correct, or drop entries as needed). Do not modify the parent file.
-- When there is nothing to carry forward, create `.radius/bicepconfig.json` with:
-
-```json
-{
-  "experimentalFeaturesEnabled": {
-    "extensibility": true
-  },
-  "extensions": {
-    "radius": "br:biceptypes.azurecr.io/radius:latest"
-  }
-}
-```
-
-Default to the `radius:latest` tag. Pin an immutable reference only when a specific version is provided (by an existing `bicepconfig.json`, the user, or the target Environment); the skill does not infer a version from source.
+- If an applicable `bicepconfig.json` already resolves the exact target contract, preserve that extension reference. A parent config may be used as input, but never modify the parent file.
+- If an exact extension artifact reference is supplied and `.radius/bicepconfig.json` is absent, create the co-located config with `extensibility` enabled and that exact reference. Preserve unrelated compatible settings from an applicable parent config.
+- A Radius source commit or `resource-types-contrib` revision proves schemas and recipes but is not itself a Bicep extension artifact reference. Do not translate it into a guessed OCI tag.
+- If the scenario supplies exact schema/recipe revisions but no extension artifact reference, generate `.radius/app.bicep` against that contract, do not create `.radius/bicepconfig.json`, and report that local compilation is unavailable until the target extension is supplied. An external validation harness may compile with the scenario's exact extension.
+- If neither an exact extension contract nor exact scenario schema/recipe revisions are available, stop and request the target contract. Never default to a mutable tag such as `radius:latest`.
+- If a configured or cached extension disagrees with the target contract, report version drift. Do not rewrite the model to fit the mismatched extension and do not claim that compilation against it validates the target.
 
 ## app.bicep Structure (mandatory order)
 
@@ -224,18 +214,19 @@ Before returning the Bicep, verify:
 - [ ] One deployment profile is selected. Every explicit type, workload role/count, native key, required value, secret binding, and connection name from the request is represented in a closed requirement ledger.
 - [ ] Every planned resource property read/write has its verbatim path in the ledger and exists in the exact configured schema/API version. Every recipe-generated output also has a verified output mapping; every managed-secret reference has the declared secret-name path and key. An absent path blocks generation rather than being replaced by a guessed property, alias, or wrapper.
 - [ ] Exactly one `Radius.Core/applications@2025-08-01-preview`, and one `extension radius` (no per-namespace or per-type extensions).
-- [ ] The file compiles with the target repository's exact configured extension; every `Radius.*` type is on the allow-list and matches that version's schema and API version. Unknown type/property warnings are resolved, not ignored.
+- [ ] When the target's exact extension artifact is configured, the file compiles with it; every `Radius.*` type is on the allow-list and matches that version's schema and API version. Unknown type/property warnings are resolved, not ignored. When exact scenario schema/recipe revisions are supplied without their extension artifact, no mismatched configured or cached substitute is used, version drift is reported when present, and the missing local compilation is reported for validation by the target harness.
 - [ ] `param environment string` is declared; add a `@secure() param` for each developer-supplied secret.
 - [ ] Every required executable role is modeled, including co-scheduled producer/consumer or proxy/backend roles. Its image/build, entrypoint/arguments, listener, exposed ports, config artifacts, writable storage/ownership, and lifecycle are correct. `containerPort` matches the process; it does not configure the listener.
 - [ ] Every required app-native input is supplied with the exact pinned-source name, casing, type, URL/config syntax, and value. Each declared generic connection is consumed by source or explicitly required as relationship metadata.
 - [ ] A source build has a complete practical Dockerfile/context and uses an immutable ref; otherwise the published image is pinned. Generated builds are consumed through `.properties.imageReference`.
+- [ ] For every `containerImages` build, the exact recipe's default platforms are known. The Dockerfile supports every selected platform with a verified cross-build strategy, or `build.platforms` is restricted to the known deployment architecture; target-architecture `RUN` steps are never emitted into an unsupported multi-platform build.
 - [ ] Credentials match the type's schema: `username`+`password` on the resource, or `secretName`+secret, or none — whichever the schema defines. Password via `@secure() param`; `database`/`topic`/`queue`/etc. derived from source.
 - [ ] Every runtime secret follows the exact schema/recipe contract and reaches the exact native key through `secretKeyRef` where supported. Recipe-generated values bind directly from declared managed-secret metadata; no authored secret copies a resource output or guessed convenience property. A sensitive resource input is not assumed to be readable by the container. No secret is hardcoded or moved into plain state; runtime composition preserves ordering, escaping, and required encoding.
 - [ ] Read-only properties are never **set**. A referenced nonsecret output exists in the exact schema and recipe; a referenced secret path/key exists in the exact secret-output contract. Such direct references provide dependency ordering.
 - [ ] Every dependency has a complete client tuple: subresource name, endpoint/FQDN transformation, port, protocol/version, TLS mode, auth mechanism/identity, secret source, and final client syntax. Provider modules, SKUs, regions, and firewall configuration remain outside `app.bicep`.
 - [ ] Primary-feature readiness is proven: required model aliases, storage backends, database clients, and messaging inputs/outputs are configured and reference the selected resources. A health endpoint or idle/placeholder process is not sufficient.
 - [ ] Perform the static consistency pass in [runtime-contract.md](references/runtime-contract.md); no unresolved runtime caveat remains.
-- [ ] The generated Bicep contains no explanatory comments. `.radius/bicepconfig.json` resolves the `radius` extension for `app.bicep`: created or updated in place (a parent `bicepconfig.json` is used only as input, never modified).
+- [ ] The generated Bicep contains no explanatory comments. When `.radius/bicepconfig.json` is created or updated, it resolves the same exact contract used to generate `app.bicep`; no mutable fallback or mismatched cached extension was used.
 
 ## Example
 

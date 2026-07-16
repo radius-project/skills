@@ -10,7 +10,7 @@ These rules apply to all generated `app.bicep` files. Resolve property names and
 - Exactly ONE `Radius.Core/applications@2025-08-01-preview` resource
 - The `@<apiVersion>` shown in the examples below (e.g. `2025-08-01-preview`) is illustrative — use the API version from each type's schema
 - All output files go in `.radius/` directory
-- Compile with the repository's exact configured extension and resolve unknown type/property warnings before returning
+- When the target's exact extension artifact is configured, compile with it and resolve unknown type/property warnings before returning. When exact scenario schema/recipe revisions are supplied without that artifact, do not compile against a substitute; report local compilation as unavailable for validation by the target harness
 - Emit every exact type, workload role, native key/value, secret binding, and relationship required by the selected compatible deployment profile
 
 ## Radius.Compute/containers structure
@@ -136,6 +136,8 @@ Rules:
 - The image is BUILT from `build.source` — there is NO `image` property and NO `param image string`
 - `build.source` is the repo git URL: `git::https://github.com/<org>/<repo>.git//<subdir>?ref=<sha-or-tag>`. Omit `//<subdir>` when the build context is the repo root; pin `?ref=` to a commit SHA or release tag for reproducible builds
 - Optional `build.dockerfile` (path to the Dockerfile relative to the source; defaults to `Dockerfile`) and optional `build.platforms`
+- Resolve the exact recipe's default platforms before omitting `build.platforms`. If the default is multi-architecture, inspect every Dockerfile `FROM` and `RUN`: a stage that executes target-architecture binaries must use a verified cross-build strategy (for example, a build stage pinned to `$BUILDPLATFORM`) or the model must set `build.platforms` to the known deployment architecture. Do not assume QEMU/binfmt is available
+- If the deployment architecture is unknown and the Dockerfile cannot safely build every recipe-default platform, stop and request the target architecture rather than emitting a build that can fail with `exec format error`
 - `tag` is optional — pin it to a SHA/immutable tag, otherwise the recipe computes a content-addressable digest
 - The container references the built image via `<serviceName>Image.properties.imageReference`; this reference creates the dependency edge, so NO separate connection to the image is needed
 - Use `containerImages` only when the source includes a complete, practical Dockerfile and build context. Do not invent a wrapper build merely to avoid a maintained published image

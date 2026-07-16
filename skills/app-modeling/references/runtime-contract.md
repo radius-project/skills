@@ -91,6 +91,7 @@ A resource output named `host` may be only one segment of the endpoint. A type n
 ## Process, network, and storage checks
 
 - `containerPort` exposes a network endpoint; it does not change the process listener. Set the app's listener configuration when its default differs.
+- For `Radius.Compute/containerImages`, inspect the exact recipe's default platforms. If a Dockerfile stage runs target-architecture binaries and lacks a verified cross-build strategy, restrict `build.platforms` to the known deployment architecture. If the architecture is unknown, stop instead of relying on an unsupported multi-platform default.
 - Kubernetes `command` replaces the image `ENTRYPOINT`; `args` replaces `CMD`. Preserve the image defaults unless an inspected runtime contract requires an override.
 - Before using shell-based runtime composition, confirm the image contains that shell and every invoked binary.
 - Ensure config/data paths are writable for the image user. Add persistent storage only when state must survive restarts.

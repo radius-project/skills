@@ -70,7 +70,9 @@ Rules:
 
 ### Config file delivery
 
-Prefer a complete config already included by the source build. When an unmodified image needs an external config file and the exact schemas support it, a mounted `Radius.Security/secrets` resource avoids assuming the image has a shell:
+Prefer a complete config already included by the source build. Use a mounted `Radius.Security/secrets` resource only when the content is itself sensitive or the exact runtime contract requires a secret-backed mount. Do not put a nonsecret configuration template in a secret merely to obtain a volume mount; that can produce a `use-secure-value-for-secure-inputs` diagnostic and obscures which values are actually secret. When the image has a verified shell, writable destination, and executable, generate nonsecret configuration at startup while keeping credentials in separately bound environment variables. Otherwise report that the available schemas cannot deliver the file safely.
+
+When a secret-backed config mount is required and supported, use this structure:
 
 ```bicep
 resource runtimeConfig 'Radius.Security/secrets@2025-08-01-preview' = {
@@ -114,7 +116,7 @@ resource workload 'Radius.Compute/containers@2025-08-01-preview' = {
 }
 ```
 
-Confirm the mounted filename, process argument, and secret/container schemas at the configured versions. Keep credentials out of the file when it can reference environment variables; bind those variables separately with `secretKeyRef`. Use startup generation only when mounting cannot satisfy the source contract and the image's shell, tools, writable path, expansion, and final command are all verified.
+Confirm the mounted filename, process argument, and secret/container schemas at the configured versions. Keep credentials out of the file when it can reference environment variables; bind those variables separately with `secretKeyRef`. For startup generation, verify the image's shell, tools, writable path, expansion, and final command.
 
 ## Radius.Compute/containerImages structure
 
@@ -234,8 +236,8 @@ Rules:
 
 ## Image resolution
 
-1. If the repo publishes a suitable image, use an immutable digest or pinned release tag directly.
-2. Otherwise, if a complete practical Dockerfile and build context exist, use `Radius.Compute/containerImages` with an immutable `build.source` ref.
+1. If a complete practical Dockerfile and build context exist and the target Environment has a compatible `Radius.Compute/containerImages` recipe, use a source build with an immutable `build.source` ref. An explicit `containerImages` requirement always selects this path even when a published image exists.
+2. Otherwise, if the repo publishes a suitable image, use an immutable digest or pinned release tag directly.
 3. If neither path is viable, report the packaging gap instead of using a bare runtime base image or inventing a fragile build wrapper.
 
 Do not use branch refs or `latest` when an immutable commit, tag, or digest is available.

@@ -21,10 +21,11 @@ Use this skill to generate a Radius application definition (`app.bicep`) from a 
 
 When asked to model a repository:
 
-1. Generate the application definition and write both `.radius/app.bicep` and `.radius/bicepconfig.json` (see [bicepconfig.json](#bicepconfigjson)) to the current working branch of the target repository.
-2. Commit both files to that branch, and push the branch when a remote is configured.
-3. In your chat reply, give a one-line intro naming the app (e.g. "I'll create an application definition for `todo-list-app`."), then a short, natural summary of the resources you identified — a brief list such as "Container: `todo-list-app`", "MySQL database", "Secret for DB credentials". A sentence or two of reasoning is fine; don't dump raw source analysis or the full file contents.
-4. Then ask whether to open a pull request against the default branch.
+1. If the requirement ledger cannot be closed against the configured schema and recipe, do not write, commit, or push a partial application definition and do not offer a pull request. Report the exact mismatch and the matching extension or recipe contract the target Environment must supply.
+2. Generate the application definition and write both `.radius/app.bicep` and `.radius/bicepconfig.json` (see [bicepconfig.json](#bicepconfigjson)) to the current working branch of the target repository.
+3. Commit both files to that branch, and push the branch when a remote is configured.
+4. In your chat reply, give a one-line intro naming the app (e.g. "I'll create an application definition for `todo-list-app`."), then a short, natural summary of the resources you identified — a brief list such as "Container: `todo-list-app`", "MySQL database", "Secret for DB credentials". A sentence or two of reasoning is fine; don't dump raw source analysis or the full file contents.
+5. Then ask whether to open a pull request against the default branch.
 
 Don't open the pull request automatically — wait for the user to confirm. If they confirm, open a PR from the working branch against the default branch with title `Add Radius application definition` and body `Add .radius/app.bicep and .radius/bicepconfig.json for <app-name>.`
 
@@ -39,7 +40,7 @@ Before writing the Bicep:
 5. Map every selected backing service to a Radius type with [component-catalog.md](references/component-catalog.md), using [architecture-patterns.md](references/architecture-patterns.md) only as context. Report unsupported essential components instead of substituting unrelated types.
 6. First create or update `.radius/bicepconfig.json` (see [bicepconfig.json](#bicepconfigjson)), using any `bicepconfig.json` currently applicable to `.radius/app.bicep` as input. Then resolve every emitted type and planned property read/write against the Radius extension that `.radius/bicepconfig.json` declares. Record the verbatim property path and schema proof in the ledger; for recipe outputs, also prove the output mapping and any managed-secret key. Reject an absent path before generation instead of guessing an alias, convenience property, or wrapper. Use the matching `resource-types-contrib` schema revision and target Environment recipe/output contract; do not copy shapes from another version.
 7. Choose a source build only when the repository has a complete, practical build context. Otherwise use a pinned published image. Map every runtime value using [connection-conventions.md](references/connection-conventions.md), [secrets-handling.md](references/secrets-handling.md), and [bicep-structure-rules.md](references/bicep-structure-rules.md).
-8. Generate the Bicep using [naming-conventions.md](references/naming-conventions.md), then compile it with the exact configured extension. Treat unknown type/property warnings as unresolved schema mismatches.
+8. Generate the Bicep using [naming-conventions.md](references/naming-conventions.md), then compile it with the exact configured extension. Treat unknown type/property warnings as unresolved schema mismatches. If compilation disagrees with the closed requirement ledger, report version drift; never make the build pass by removing a required backend activation, native configuration value, secret binding, or dependency edge.
 9. Perform the [validation checklist](#validation-checklist) and close every item in the requirement ledger. Compilation or process startup alone is not success.
 
 ## Deployment Profile and Acceptance Contract
@@ -49,7 +50,7 @@ Before writing the Bicep:
 - **No implicit omissions:** Each required typed resource must be emitted and wired to a consumer. Each required workload role must have a runnable process and complete config. Each required native key/value must appear in the exact source-supported location and format.
 - **No decorative wiring:** Environment variables, connections, and resources must be consumed by the selected feature path. Merely declaring a dependency or starting a process does not prove the requested database, model, storage, or messaging path works.
 - **Infer only when unspecified:** Without an explicit profile, prefer a complete, documented manifest/configuration that exercises the application's primary feature. If multiple materially different profiles remain valid, ask the user rather than choosing an optional backend arbitrarily.
-- **Fail closed on verified incompatibility:** Fully implement every clearly supported criterion. Stop only after evidence proves the pinned source or exact schema/recipe cannot satisfy a requirement; do not return a partial definition as deployable or leave unresolved runtime caveats.
+- **Fail closed on verified incompatibility:** Fully implement every clearly supported criterion. Stop only after evidence proves the pinned source or exact schema/recipe cannot satisfy a requirement; do not return a partial definition as deployable or leave unresolved runtime caveats. A clean compile after deleting feature-critical wiring is a validation failure, not a compatible fallback.
 
 ### Repairing an existing app.bicep
 
@@ -57,7 +58,7 @@ When a deploy fails because of a modeling or schema error in an existing `.radiu
 
 1. Confirm whether the failure comes from the application model. If it is an infrastructure, recipe, Environment, or cluster failure (for example, recipe download/execution or provider provisioning), stop and report that editing `app.bicep` will not fix it. A pod that never becomes ready is not enough to classify the failure: inspect events and logs to distinguish infrastructure/connectivity failures from incorrect workload configuration, listeners, credentials, or dependency wiring in `app.bicep`.
 2. Locate the implicated resource, property, or workload setting, then re-resolve the exact configured type schema and recipe output contract (see [Resource Type Resolution](#resource-type-resolution)) to confirm property names, required fields, credential shape, API version, and resource reference paths.
-3. Apply the fix using the same runtime-contract, naming, structure, and secrets rules as authoring so the repaired resource stays consistent with the rest of the file. While you are in the file, also correct any other clear schema or rule violations you notice, and report each collateral fix you made.
+3. Apply the fix using the same runtime-contract, naming, structure, and secrets rules as authoring so the repaired resource stays consistent with the rest of the file. While you are in the file, also correct any other clear schema or rule violations you notice, and report each collateral fix you made. Never clear a compile error by deleting a required binding, native value, backend activation, or dependency edge; report version drift when the configured schema cannot represent the runnable profile.
 4. Re-run the [validation checklist](#validation-checklist) against the whole file; a change in one resource can ripple to connections or references elsewhere.
 5. Return the corrected file with a short note of what changed and why, then suggest redeploying to confirm the fix. If the same error recurs, treat the previous fix as insufficient and try a different fix rather than reapplying the one that just failed. If a couple of different fixes still do not resolve it, or no different fix can be found, stop and surface the problem to the user instead of looping.
 
@@ -174,6 +175,8 @@ Declare exactly one extension, `extension radius`. It provides every Radius type
 
 Default to the `radius:latest` tag. Pin an immutable reference only when a specific version is provided (by an existing `bicepconfig.json`, the user, or the target Environment); the skill does not infer a version from source.
 
+The `radius:latest` fallback is valid only when its schema closes the full requirement ledger. If a verified target schema or recipe exposes a required output that the mutable artifact lacks, do not downgrade the application to the artifact's older surface, replace native wiring with an unconsumed connection, or describe the resource as available for later manual setup. Report the exact version mismatch and the matching extension artifact the target Environment must supply.
+
 ## app.bicep Structure (mandatory order)
 
 Declare resources in this order (do NOT output this as code — it is only for your reference):
@@ -234,6 +237,7 @@ Before returning the Bicep, verify:
 - [ ] Read-only properties are never **set**. A referenced nonsecret output exists in the exact schema and recipe; a referenced secret path/key exists in the exact secret-output contract. Such direct references provide dependency ordering.
 - [ ] Every dependency has a complete client tuple: subresource name, endpoint/FQDN transformation, port, protocol/version, TLS mode, auth mechanism/identity, secret source, and final client syntax. Provider modules, SKUs, regions, and firewall configuration remain outside `app.bicep`.
 - [ ] Primary-feature readiness is proven: required model aliases, storage backends, database clients, and messaging inputs/outputs are configured and reference the selected resources. A health endpoint or idle/placeholder process is not sufficient.
+- [ ] No ledger row was closed by deleting its required wiring to obtain a clean compile. Any remaining schema or recipe mismatch produced a fail-closed report instead of a partial application definition.
 - [ ] Perform the static consistency pass in [runtime-contract.md](references/runtime-contract.md); no unresolved runtime caveat remains.
 - [ ] The generated Bicep contains no explanatory comments. `.radius/bicepconfig.json` resolves the `radius` extension for `app.bicep`: created or updated in place (a parent `bicepconfig.json` is used only as input, never modified).
 

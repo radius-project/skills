@@ -104,11 +104,11 @@ Process startup is insufficient for configurable proxies, gateways, file servers
 
 - a model-backed proxy has a usable model alias/provider route and endpoint/key/version wiring;
 - a stream or queue pipeline has complete input and output roles/configuration;
-- a storage-backed service configures the selected remote filesystem rather than leaving credential variables unused;
+- a storage-backed service configures the selected remote filesystem rather than leaving credential variables unused; a file server also has a bootstrapped account, folder, or equivalent runnable path that selects that filesystem;
 - a database UI/client has a complete preconfigured native connection; and
 - every generated config file is passed to the process that consumes it.
 
-Do not count an empty default config, placeholder pipeline, admin UI startup, or health endpoint as readiness.
+Do not count an empty default config, placeholder pipeline, admin UI startup, health endpoint, or a dependency reserved for later manual configuration as readiness.
 
 ## Provider compatibility and ownership
 

@@ -27,7 +27,7 @@ For every dependency:
    - runtime composition; or
    - generic connection projection only when the source explicitly consumes that applicable contract.
 
-An unmodified third-party image usually expects its own native variables or configuration. A connection alone does not configure it unless its source already understands the projected `CONNECTION_*` contract. A provider-specific `host` output may also require a documented suffix, port, TLS mode, or auth block before it is a usable client endpoint.
+An unmodified third-party image usually expects its own native variables or configuration. A connection alone does not configure it unless its source already understands the projected `CONNECTION_*` contract. A provider-specific `host` output may also require a documented suffix, port, TLS mode, or auth block before it is a usable client endpoint. Requiring an operator to configure the dependency later through an admin UI or API does not make the generated deployment runnable.
 
 ## Source consumes the generic contract
 
@@ -83,3 +83,4 @@ Keep a connection alongside native variables when the source consumes generic va
 6. Treat case, number-to-string conversion, URL encoding, TLS mode, and protocol-specific formatting as part of the app's runtime contract.
 7. Preserve exact relationship names and provider/runtime values supplied by an explicit compatible profile; do not normalize them to generic defaults.
 8. Do not count a connected resource as used unless the selected feature path consumes its projection or explicit native wiring.
+9. If schema drift blocks a required native or secret binding, report the mismatch; never delete the binding and retain only the connection to obtain a clean compile.

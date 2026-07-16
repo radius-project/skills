@@ -6,7 +6,7 @@ A compiling `app.bicep` proves only that its syntax and resource shapes are acce
 
 Start with an explicit request or scenario contract, then inspect primary evidence before relying on prose documentation:
 
-1. Explicit profile: requested Radius types, provider/backend, workload roles/count, app-native keys, protocol/config values, secret bindings, and relationship names.
+1. Explicit profile: requested Radius types, provider/backend, resource-name parameters, workload roles/count, app-native keys, protocol/config values, secret bindings, and relationship names. Include explicit deployment contracts in the target repository's README, Environment definition, and verification workflow.
 2. Dockerfile and complete build context: stages, copied files, build arguments, `ENTRYPOINT`, `CMD`, `WORKDIR`, `USER`, installed shells/tools, and writable paths.
 3. Compose/Helm/Kubernetes manifests: service roles, images, commands, environment, mounted config, ports, volumes, health checks, and dependency topology.
 4. Entrypoints and source: environment/config reads, defaults, client constructors, URL assembly, protocol options, listener address/port, migrations, and worker-versus-web behavior.
@@ -34,13 +34,16 @@ Create a requirement ledger before writing Bicep:
 | Native key/value | Pinned-source read and exact expected format/value |
 | Secret binding | Exact managed/authored secret resource path and key |
 | Provider behavior | Exact recipe output plus endpoint, protocol, TLS, and auth transformation |
+| Provider resource name | Exact explicit parameter and provider naming/uniqueness constraint when the recipe or verification couples them |
 | Connection | Exact requested relationship name and source; projection use if relied upon |
 
 Every row must map to emitted Bicep and a real consumer. A declared but unused variable, connection, or resource does not close the row.
 
-Before writing Bicep, enumerate every planned resource property read and write as a separate ledger row. Record the verbatim path and prove it against the exact configured extension schema and API version. For a generated output, also prove that the selected recipe maps that output. For a managed secret, prove the declared managed-secret name path and key; the key declaration is metadata, not a readable secret value. When `properties.secrets` declares the output contract, the consumer row must use that managed secret name and verified key directly through `secretKeyRef`; any row that reads the key as a resource property or copies it into an authored secret fails preflight.
+Before writing Bicep, enumerate every planned resource property read and write as a separate ledger row. Record the verbatim path and prove it against the exact target schema and API version, then reconcile it with the configured extension unless the verified mutable-drift rule below applies. For a generated output, also prove that the selected recipe maps that output. For a managed secret, prove the declared managed-secret name path and key; the key declaration is metadata, not a readable secret value. When `properties.secrets` declares the output contract, the consumer row must use that managed secret name and verified key directly through `secretKeyRef`; any row that reads the key as a resource property or copies it into an authored secret fails preflight.
 
 Reject the model before generation if any schema path is absent or any generated output cannot be reconciled with the recipe. Do not repair a missing output by guessing a direct convenience property, choosing a similarly named alias, or copying it through an authored secret wrapper. Compilation is a downstream confirmation, not the discovery mechanism for property paths.
+
+When a mutable compiled extension disagrees with the exact target schema and recipe, treat the schema/recipe pair as authoritative for the model. Refresh or pin a matching extension if possible. If that is unavailable, retain the exact target property and secret shape in the generated file, fail validation, and report the drift; never rewrite the model to a stale direct property just to obtain a successful local compile.
 
 ## Inventory each workload
 
@@ -121,7 +124,7 @@ Inspect the concrete type, registered recipe, and client source together. Derive
 Before returning the model:
 
 1. Account for every required app-native environment/config input or document an intentional source default.
-2. Close every explicit acceptance criterion in the requirement ledger; preserve required literal values and exact relationship names.
+2. Close every explicit acceptance criterion in the requirement ledger; preserve required literal values, resource-name parameters, and exact relationship names.
 3. Reject every resource property read/write that lacks a closed ledger row proving its exact schema path and, for generated outputs, its recipe mapping.
 4. Confirm every secret uses the exact supported secret path and is not exposed through plain state.
 5. Confirm every declared port matches a configured process listener.

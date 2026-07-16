@@ -18,3 +18,4 @@
 - Resource `name` properties (string values) are always kebab-case
 - Map keys inside `containers`, `ports`, and `volumes` are camelCase; `connections` keys are lowercase (engine + role)
 - Never use spaces, underscores, or special characters in any name
+- Explicit deployment-contract names and parameters take precedence over defaults. When a target Environment recipe passes the Radius resource name through to a provider resource that requires a globally unique name, preserve the documented parameter (for example, `accountName`) and use it as the resource `name` instead of hardcoding an engine default.

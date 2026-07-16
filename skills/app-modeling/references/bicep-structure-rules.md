@@ -10,7 +10,7 @@ These rules apply to all generated `app.bicep` files. Resolve property names and
 - Exactly ONE `Radius.Core/applications@2025-08-01-preview` resource
 - The `@<apiVersion>` shown in the examples below (e.g. `2025-08-01-preview`) is illustrative — use the API version from each type's schema
 - All output files go in `.radius/` directory
-- Compile with the repository's exact configured extension and resolve unknown type/property warnings before returning
+- Compile with the repository's exact configured extension and resolve unknown type/property warnings before returning. For verified drift from a mutable extension, preserve the exact target schema/recipe shape, fail validation, and report the diagnostic instead of changing the model to the stale shape
 - Emit every exact type, workload role, native key/value, secret binding, and relationship required by the selected compatible deployment profile
 
 ## Radius.Compute/containers structure

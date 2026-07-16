@@ -99,6 +99,7 @@ A resource output named `host` may be only one segment of the endpoint. A type n
 - Before using shell-based runtime composition, confirm the image contains that shell and every invoked binary.
 - A shell expansion is not URL encoding. Do not assume an unconstrained password is URL-safe; prove the runtime encoder or use source-native decomposed inputs that perform the encoding.
 - A BuildKit Git context omits `.git` by default. When the Dockerfile copies `.git` or a required build step invokes Git metadata, require schema-supported `BUILDKIT_CONTEXT_KEEP_GIT_DIR=1`; otherwise reject the source build or choose a pinned published image.
+- Resolve the container image recipe's default platforms before omitting `build.platforms`. They must include the known runtime architecture, and a multi-platform default requires a compatible cross-compilation strategy for every target. Without emulation, a Dockerfile that executes target-architecture binaries must be constrained to a supported runtime architecture.
 - Ensure config/data paths are writable for the image user. Add persistent storage only when state must survive restarts.
 - Keep migrations and verification probes distinct from the long-running application. Use an init role only when the application genuinely requires it.
 - When a selected profile requires multiple roles, model every role and its complete command/configuration. Do not collapse producer and consumer behavior into an idle process.
@@ -139,3 +140,4 @@ Before returning the model:
 11. Confirm every aggregate credential-bearing URL/config is produced by an exact managed-secret output or a verified runtime encoder/composer, never by interpolation inside an authored secret.
 12. Confirm source-native decomposed connection inputs were considered before aggregate composition and no credential character-set assumption substitutes for encoding.
 13. Confirm every source build receives required Git metadata and other nondefault context inputs.
+14. Confirm every source-build platform is supported by the Dockerfile and builder; recipe defaults are never assumed safe.

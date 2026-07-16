@@ -136,7 +136,7 @@ Rules:
 - The image is BUILT from `build.source` — there is NO `image` property and NO `param image string`
 - `build.source` is the repo git URL: `git::https://github.com/<org>/<repo>.git//<subdir>?ref=<sha-or-tag>`. Omit `//<subdir>` when the build context is the repo root; pin `?ref=` to the exact checked-out source commit or an explicit immutable release tag. Never copy `main`, `edge`, or another mutable ref from an existing app definition, manifest, or example
 - Optional `build.dockerfile` (path to the Dockerfile relative to the source; defaults to `Dockerfile`) and optional `build.platforms`
-- `tag` is optional — pin it to a SHA/immutable tag, otherwise the recipe computes a content-addressable digest
+- `tag` is schema-optional, but omission is valid only after verifying that the exact target Recipe handles an absent/null value safely. If it does not, set `tag` to a Docker-compatible immutable value derived from the modeled source commit; never use a mutable branch name
 - The container references the built image via `<serviceName>Image.properties.imageReference`; this reference creates the dependency edge, so NO separate connection to the image is needed
 - Use `containerImages` only when the source includes a complete, practical Dockerfile and build context. Do not invent a wrapper build merely to avoid a maintained published image
 - Registry credentials used to push a generated image are distinct from Kubernetes credentials used to pull it at runtime

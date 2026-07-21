@@ -13,7 +13,9 @@ For every secret, inspect:
 
 Preserve any explicit profile requirement that a recipe-generated or genuine application secret reach a particular native key through `secretKeyRef`. Binding it under a helper name does not satisfy a workload that reads the required key directly. A developer-supplied credential remains a direct `@secure()` `env.value` binding.
 
-Never hardcode passwords, tokens, keys, or credential-bearing URLs. Use a `@secure()` parameter for developer-supplied Bicep inputs. Radius carries a `@secure()` parameter to a sensitive resource property and, when the parameter is assigned to a container `env.value`, injects it into the container without materializing it into plain state.
+Never hardcode passwords, tokens, keys, or credential-bearing URLs. Use an appropriately typed `@secure()` parameter for developer-supplied Bicep inputs. A secure string parameter compiles to `secureString`; a secure object parameter compiles to `secureObject` and is appropriate only when the exact contract accepts the whole object. Radius carries a `@secure()` parameter to a sensitive resource property and, when the parameter is assigned to a container `env.value`, injects it into the container without materializing it into plain state.
+
+Always compile the completed `.radius/app.bicep` and inspect its SARIF diagnostics. Bicep warnings do not produce a nonzero exit code. A plain string or literal assigned to an `x-radius-sensitive` property emits `use-secure-value-for-secure-inputs`; treat that and every other warning as a validation failure, surface the complete diagnostic, correct the input to use `@secure()`, and rerun compilation. Never silence the warning with configuration or a disable comment.
 
 ## Developer-supplied secret inputs
 
@@ -140,7 +142,9 @@ If neither path exists, report the schema/application contract gap and do not em
 - No authored secret `data.value` references a recipe resource output or guessed convenience property.
 - No authored secret `data.value` interpolates an aggregate credential-bearing URL/config.
 - No secret is hardcoded, assumed URL-safe, or assumed to appear in generic connection variables.
+- Every developer-supplied sensitive input is an appropriately typed `@secure()` parameter, never a plain parameter or literal. Compiled string and object parameters are `secureString` and `secureObject`, respectively.
 - A developer-supplied `@secure()` value flows only through schema-sensitive properties or direct container `env.value`, never through a wrapper secret or `secretKeyRef`.
 - `secretKeyRef` binds a recipe-generated value only through the owner's exact read-only managed-secret name/key. It may also consume an authored `Radius.Security/secrets`, which is allowed only for genuine application secrets/config files or a type whose schema requires `secretName`, never to wrap a recipe output.
 - Runtime composition preserves dependency order, escaping, encoding, and image entrypoint behavior.
 - A final credential-bearing URL/config is bound from a matching managed secret or safely composed at runtime; it is never reconstructed in Bicep or an authored secret.
+- `bicep build .radius/app.bicep --diagnostics-format sarif --stdout` emits no warnings or errors. Full diagnostics were surfaced and corrected, including `use-secure-value-for-secure-inputs`; none were suppressed.

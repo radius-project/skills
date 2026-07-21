@@ -22,8 +22,8 @@ For every dependency:
 3. Inspect the exact resource outputs and connection projection supplied by the target schema and recipe.
 4. Prove the full client tuple: subresource, complete endpoint, port, protocol/version, TLS, auth mechanism, secret, and final source-supported format.
 5. Select the wiring for each app-native value:
-   - explicit `env.value` from a verified nonsecret output, literal, or developer-supplied `@secure()` parameter;
-   - `valueFrom.secretKeyRef` from an exact recipe-generated managed secret/key;
+   - explicit `env.value` from a verified nonsecret output or literal, or from a developer-supplied `@secure()` parameter (Radius encrypts and injects it);
+   - `valueFrom.secretKeyRef` from an exact secret and key: a recipe-generated managed secret via `<resource>.properties.secrets.name`, or an authored `Radius.Security/secrets`;
    - runtime composition; or
    - generic connection projection only when the source explicitly consumes that applicable contract.
 
@@ -66,7 +66,7 @@ containers: {
 }
 ```
 
-This is a representative pattern, not a required variable naming scheme. Confirm that `host` is explicitly mapped by the exact Recipe and that the app-native variables exist in the pinned source. Radius encrypts and injects the `@secure()` parameter assigned to `env.value`; do not wrap it in an authored secret. Direct resource references create dependency ordering, so a connection is not required merely to order deployment.
+This is a representative pattern, not a required variable naming scheme. `APP_DB_PASSWORD` is set from the same `@secure()` parameter supplied to the database resource; Radius encrypts and injects it into the container without materializing it into plain state, so do not wrap it in an authored secret. Confirm that `host` is explicitly mapped by the exact Recipe and that the app-native variables exist in the pinned source. Direct resource references create dependency ordering, so a connection is not required merely to order deployment.
 
 Keep a connection alongside native variables when the source consumes generic values or the selected profile explicitly requires Radius relationship metadata. Explicit native variables are not categorically forbidden just because generic projection exists. Ensure duplicate names do not carry conflicting values.
 
@@ -75,7 +75,7 @@ Keep a connection alongside native variables when the source consumes generic va
 1. Never assume a connection invents app-specific variables, URLs, credentials, database names, or protocol settings.
 2. Never assume one universal JSON or scalar `CONNECTION_*` projection. Verify the target version.
 3. Sensitive recipe outputs may be omitted from generic projection. Resolve and bind them through the exact secret contract described in [secrets-handling.md](secrets-handling.md).
-   Bind a recipe-generated value with `secretKeyRef` directly from schema-declared managed-secret metadata, never through an authored wrapper or guessed resource property. A developer-supplied credential already held in a `@secure()` parameter goes directly to `env.value`.
+   A recipe-generated sensitive app-native key must use an explicit `secretKeyRef` even when its name looks exactly like `CONNECTION_<NAME>_<PROPERTY>`; the matching connection does not project the secret. Bind it directly from schema-declared managed-secret metadata, never through an authored wrapper or guessed resource property. A developer-supplied credential you already hold as a `@secure()` parameter goes straight to `env.value` instead.
 4. Reference a nonsecret read-only output only when the exact schema exposes it and the exact target Recipe maps it. Do not **set** read-only properties.
 5. Use `disableDefaultEnvVars` only on the connection entry, only when the exact container schema supports it, and only when generic projection would conflict with the application.
 6. Treat case, number-to-string conversion, URL encoding, TLS mode, and protocol-specific formatting as part of the app's runtime contract.

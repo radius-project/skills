@@ -17,21 +17,29 @@ description: >
 
 Use this skill to generate a Radius application definition (`app.bicep`) from a source code repository.
 
+## Prerequisites
+
+This skill currently supports only repositories that already contain a Dockerfile for building the application image. Before doing anything else, confirm the target repository includes a Dockerfile for the application (repo root or the relevant service subdirectory; match `Dockerfile`, `Dockerfile.*`, or `*.Dockerfile`, case-insensitively).
+
+If no Dockerfile is present, stop immediately. Do not generate `.radius/app.bicep` or `.radius/bicepconfig.json`, do not create or write to a branch, and do not commit or push. Return only this error:
+
+> This repository does not contain a Dockerfile. The Radius app modeling skill currently supports only repositories that already include a Dockerfile for building the application image. Add a Dockerfile for the application service and run the skill again.
+
 ## Response
 
-When asked to model a repository:
+When asked to model a repository, first apply the [Prerequisites](#prerequisites) check. Only if it passes:
 
 1. If the requirement ledger cannot be closed against the exact source, schema, and target Environment recipe contracts, do not write, commit, or push a partial application definition. Report the mismatch and the compatible extension or recipe contract required.
-2. Generate the application definition and write both `.radius/app.bicep` and `.radius/bicepconfig.json` (see [bicepconfig.json](#bicepconfigjson)) to the current working branch of the target repository.
+2. Generate the application definition and write both `.radius/app.bicep` and `.radius/bicepconfig.json` (see [bicepconfig.json](#bicepconfigjson)) to the current working branch of the target repository. If that branch does not exist yet, create it before writing.
 3. Commit both files to that branch, and push the branch when a remote is configured.
-4. In your chat reply, give a one-line intro naming the app (e.g. "I'll create an application definition for `todo-list-app`."), then a short, natural summary of the resources you identified — a brief list such as "Container: `todo-list-app`", "MySQL database", "Secret for DB credentials". A sentence or two of reasoning is fine; don't dump raw source analysis or the full file contents.
+4. In your chat reply, give a one-line intro naming the app (e.g. "I'll create an application definition for `todo-list-app`."), then a short, natural summary of the resources you identified — a brief list such as "Container: `todo-list-app`", "MySQL database", "Secure DB credential binding". A sentence or two of reasoning is fine; don't dump raw source analysis or the full file contents.
 5. Then ask whether to open a pull request against the default branch.
 
 Don't open the pull request automatically — wait for the user to confirm. If they confirm, open a PR from the working branch against the default branch with title `Add Radius application definition` and body `Add .radius/app.bicep and .radius/bicepconfig.json for <app-name>.`
 
 ## Workflow
 
-Before writing the Bicep:
+Before writing the Bicep, confirm the repository satisfies the [Prerequisites](#prerequisites) (it must contain a Dockerfile); if not, stop and return the prerequisite error without modeling, generating, or writing anything. Then:
 
 1. Select one runnable deployment profile. Treat explicit user, scenario, and target-repository deployment requirements for Radius types, resource-name parameters, workload roles/count, native configuration keys, secret bindings, provider profile, protocol values, and connection names as acceptance criteria. Verify that the pinned source supports that profile; do not silently replace it with an easier default or optional backend.
 2. Build an internal requirement ledger that maps every acceptance criterion and planned resource property reference to source evidence, an exact Radius schema/recipe field, and the workload setting that consumes it. Use it for reasoning and validation; do not print it or add it as Bicep comments. Follow [runtime-contract.md](references/runtime-contract.md).
@@ -39,7 +47,7 @@ Before writing the Bicep:
 4. Extract each workload's runtime contract: image/build context and target platform, entrypoint and arguments, listener and ports, required environment/configuration including parser coercion and unset behavior, secrets, writable storage, dependencies, wire protocols, authentication/bootstrap setup, and feature-critical configuration. Inspect CLI flags and structured fields as well as environment variables.
 5. Map every selected backing service to a Radius type with [component-catalog.md](references/component-catalog.md), using [architecture-patterns.md](references/architecture-patterns.md) only as context. Report unsupported essential components instead of substituting unrelated types.
 6. First create or update `.radius/bicepconfig.json` (see [bicepconfig.json](#bicepconfigjson)), using any `bicepconfig.json` currently applicable to `.radius/app.bicep` as input. Resolve every emitted type and planned property read/write against the exact target Environment schema and Recipe contract, then reconcile that contract with the extension that `.radius/bicepconfig.json` declares. For every output, open the exact Environment recipe or matching immutable provider recipe-pack source and record the verbatim mapping; schema descriptions and property names are not recipe evidence. Also prove each managed-secret name/key, every omitted optional recipe input, and target Environment recipe availability for every emitted extensible type. The exact target schema and Recipe outrank stale mutable extension metadata such as `radius:latest`. Refresh or pin a verified compatible extension when possible; otherwise fail closed before generation rather than changing or deleting required wiring to fit the stale artifact.
-7. Choose a source build only when the repository has a complete, practical build context. Pin `build.source` to the exact modeled checkout or an explicit immutable release tag. Resolve the exact `containerImages` Recipe: set a Docker-valid immutable `tag` when its omitted-tag path is not proven usable, select explicit target-compatible `build.platforms` when the Dockerfile cannot safely build every default platform, and preserve required Git metadata with schema-supported build arguments. Otherwise use a pinned published image. Map every runtime value using [connection-conventions.md](references/connection-conventions.md), [secrets-handling.md](references/secrets-handling.md), and [bicep-structure-rules.md](references/bicep-structure-rules.md).
+7. Build the application's own workloads from the repository Dockerfile via `Radius.Compute/containerImages`; use a pinned published image only for a genuinely third-party or backing container. Require a complete, practical build context and pin `build.source` to the exact modeled checkout or an explicit immutable release tag. Resolve the exact `containerImages` Recipe: set a Docker-valid immutable `tag` when its omitted-tag path is not proven usable, select explicit target-compatible `build.platforms` when the Dockerfile cannot safely build every default platform, and preserve required Git metadata with schema-supported build arguments. If an application workload's Dockerfile or context is unusable, report the packaging gap instead of substituting a published image for the application's own code. Map every runtime value using [connection-conventions.md](references/connection-conventions.md), [secrets-handling.md](references/secrets-handling.md), and [bicep-structure-rules.md](references/bicep-structure-rules.md).
 8. Generate the Bicep using [naming-conventions.md](references/naming-conventions.md), then compile it with an extension compatible with the exact target contract. Treat unknown type/property warnings as unresolved schema mismatches. Never make compilation pass by deleting a required backend activation, native configuration value, secret binding, or dependency edge.
 9. Perform the [validation checklist](#validation-checklist) and close every item in the requirement ledger. Compilation or process startup alone is not success.
 
@@ -77,7 +85,7 @@ Explicit profile-required resource, relationship, parameter, and app-native conf
 | Container | `<serviceName>Container` — service short name camelCase; single-container apps use `<shortName>Container` (e.g., `todoContainer`) |
 | Container image | `<serviceName>Image` (e.g., `todoImage`) |
 | Data store (database/cache/queue) | `<engine>` + role suffix, camelCase: `mysqlDb`, `postgresDb`, `neo4jDb`, `redisCache`. Multiple of the same engine: prefix with the source store name (e.g., `ordersPostgresDb`) |
-| Data store secret | `<engine>Secret` when the type requires `secretName`; app secrets use `appSecrets` |
+| Data store secret | `<engine>Secret` when the type's schema requires `secretName`; app secrets use `appSecrets` |
 | Route | `<serviceName>Route` (e.g., `todoRoute`) |
 
 ### Resource `name` properties (string values in Bicep)
@@ -88,7 +96,7 @@ Explicit profile-required resource, relationship, parameter, and app-native conf
 | Container | Service name in kebab-case; single-container apps use the app name (e.g., `'todo-list-app'`) |
 | Container image | `'<service-name>-image'` (e.g., `'todo-list-app-image'`) |
 | Data store | Engine short name in kebab-case (`'mysql'`, `'postgres'`, `'neo4j'`, `'redis'`); multiple of the same engine use the source store name |
-| Data store secret | `'<engine>-secret'` when the type requires `secretName`; app secrets `'app-secrets'` |
+| Data store secret | `'<engine>-secret'` (when the schema requires `secretName`); app secrets `'app-secrets'` |
 
 ### Connection keys
 
@@ -184,7 +192,7 @@ Declare resources in this order (do NOT output this as code — it is only for y
 2. Params: `environment`; add a `@secure() param` for each developer-supplied secret value
 3. Application resource (`Radius.Core/applications@2025-08-01-preview`) — always exactly one
 4. Data / infrastructure resources (databases, caches, message brokers, object storage, AI services)
-5. Secret resources (app secrets or schema-required credentials via `secretName`)
+5. Secret resources (app secrets, or schema-required credentials via `secretName`)
 6. Container image resources (if building from Dockerfile)
 7. Container resources (with image, configuration, secret, and dependency wiring)
 8. Routes (only if external ingress needed)
@@ -212,7 +220,7 @@ Rules:
 
 See [secrets-handling.md](references/secrets-handling.md). Secret contracts are version- and type-specific:
 
-- **Inputs** (credentials you supply): follow the exact schema — set a sensitive property from a `@secure()` parameter, author a `Radius.Security/secrets` only when the schema requires `secretName`, or supply no credential when the schema has none. When the application also consumes the developer-supplied credential, assign the same `@secure()` parameter directly to its `env.value`; never wrap it in an authored secret or route it through `secretKeyRef`.
+- **Inputs** (credentials you supply): follow the exact schema — set an `x-radius-sensitive` property (e.g. `password`) from a `@secure()` parameter; author a referenced `Radius.Security/secrets` only when the schema uses `secretName`; or none. When the app container also needs a supplied credential, assign the same `@secure()` parameter directly to its `env.value` — Radius encrypts and injects it, so do NOT wrap it in a `Radius.Security/secrets` or route it through `secretKeyRef`.
 - **Outputs** (values a recipe generates): inspect the exact registered schema and recipe output mapping. When they declare managed-secret metadata, bind the workload directly with `secretName: <resource>.properties.secrets.name` and an exact key declared in that block. Those key declarations are not readable convenience properties. Never copy a recipe secret through an authored wrapper or guess `<resource>.properties.<key>`; if the managed-secret contract is absent, report the gap.
 - An authored `Radius.Security/secrets.data.value` is not a runtime composition mechanism. Prefer source-native decomposed connection inputs. When an application requires one credential-bearing value, use an exact compatible managed-secret output or a verified runtime encoder/composer with correct ordering and escaping. URL-encode arbitrary valid credentials when the target syntax requires it; shell expansion alone is not encoding.
 
@@ -223,6 +231,7 @@ Read [bicep-structure-rules.md](references/bicep-structure-rules.md) for all str
 ## Validation Checklist
 
 Before returning the Bicep, verify:
+- [ ] The repository contains a Dockerfile; a repo without one was rejected with the prerequisite error and produced no files (see [Prerequisites](#prerequisites)).
 - [ ] One deployment profile is selected. Every explicit type, resource-name parameter, workload role/count, native key, required value, secret binding, and connection name from the request is represented in a closed requirement ledger. Every modeled backing service is mandatory for that selected source path; optional repository-wide dependencies are omitted.
 - [ ] Every planned resource property read/write has its verbatim path in the ledger and exists in the exact target schema/API version. Every recipe-generated output has a mapping copied from the exact target Environment Recipe or matching immutable provider recipe source; every managed-secret reference has the declared nested secret-name path and exact key; every omitted optional Recipe input is proven safe. An absent path blocks generation rather than being replaced by a guessed property, alias, wrapper, or stale mutable-extension shape.
 - [ ] Exactly one `Radius.Core/applications@2025-08-01-preview`, and one `extension radius` (no per-namespace or per-type extensions).
@@ -231,9 +240,9 @@ Before returning the Bicep, verify:
 - [ ] `param environment string` is declared; add a `@secure() param` for each developer-supplied secret.
 - [ ] Every required executable role is modeled, including co-scheduled producer/consumer or proxy/backend roles. Its image/build, entrypoint/arguments, listener, exposed ports, config artifacts, writable storage/ownership, authentication/bootstrap path, and lifecycle are correct. `containerPort` matches the process; it does not configure the listener.
 - [ ] Every required app-native input is supplied with the exact pinned-source name, casing, representation, parser coercion, unset behavior, URL/config syntax, and value. String values preserve source semantics; for example, a source that evaluates `Boolean(value)` must not receive non-empty `'false'` to mean false. Each generic connection is consumed by source or explicitly required as relationship metadata.
-- [ ] A source build has a complete practical Dockerfile/context and pins the exact modeled checkout or an explicit immutable release tag; otherwise the published image is pinned. An omitted image tag is proven usable in the exact Recipe or a Docker-valid immutable tag is set. Selected platforms match the Dockerfile's proven cross-build behavior and target runtime. Required Git metadata is preserved with schema-supported build arguments. Generated builds are consumed through `.properties.imageReference`.
+- [ ] The application's own workloads build from a complete practical repository Dockerfile/context through `Radius.Compute/containerImages`, with `build.source` pinned to the exact modeled checkout or an explicit immutable release tag. Published images are pinned and used only for genuinely third-party/backing containers. An omitted image tag is proven usable in the exact Recipe or a Docker-valid immutable tag is set. Selected platforms match the Dockerfile's proven cross-build behavior and target runtime. Required Git metadata is preserved with schema-supported build arguments. Generated builds are consumed through `.properties.imageReference`.
 - [ ] Credentials match the type's schema: `username`+`password` on the resource, or `secretName`+secret, or none — whichever the schema defines. Password via `@secure() param`; `database`/`topic`/`queue`/etc. derived from source.
-- [ ] A developer-supplied credential the app consumes reaches the exact native key from the same `@secure()` parameter through `env.value`, never through an authored wrapper secret. Recipe-generated values bind with `secretKeyRef` directly from the exact nested managed-secret name and key. No authored secret copies an output, guesses a convenience property, or interpolates an aggregate credential-bearing URL/config.
+- [ ] A developer-supplied credential the app consumes reaches the exact native key from the same `@secure()` parameter through `env.value`, never through an authored wrapper secret or `secretKeyRef`. Recipe-generated values bind with `secretKeyRef` only from the exact nested managed-secret name and key. Authored `Radius.Security/secrets` are limited to genuine app secrets/config files or schema-required `secretName` inputs. No authored secret copies an output, guesses a convenience property, or interpolates an aggregate credential-bearing URL/config.
 - [ ] Read-only properties are never **set**. A referenced nonsecret output exists in the exact schema and is explicitly mapped by the selected Recipe; a provider-fixed literal has proof from the concrete provider contract. A referenced secret path/key exists in the exact secret-output contract. Such direct references provide dependency ordering.
 - [ ] Every dependency has a complete client tuple: subresource name, endpoint/FQDN transformation, port, protocol/version, TLS mode, auth mechanism/identity, secret source, and final client syntax. Provider modules, SKUs, regions, and firewall configuration remain outside `app.bicep`.
 - [ ] Primary-feature readiness is proven: required model aliases, storage backends, database clients, messaging inputs/outputs, and noninteractive authentication/bootstrap settings are configured and reference the selected resources. A health endpoint, login screen without a usable bootstrap path, or idle/placeholder process is not sufficient.

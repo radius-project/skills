@@ -17,7 +17,7 @@ the SQLite default does not override the explicit selection.
 | Image tag | Set the pinned source commit as the tag because the selected Recipe's omitted-tag path is broken |
 | Build platform | Override the incompatible multi-platform Recipe default with `linux/amd64` |
 | Native database contract | Supply `MYSQL_HOST`, `MYSQL_USER`, `MYSQL_PASSWORD`, and `MYSQL_DB` |
-| Developer-supplied credential | Set `MYSQL_PASSWORD` from the same `@secure()` password parameter through `env.value` |
+| Developer-supplied credential | Set `MYSQL_PASSWORD` from the same `@secure()` password parameter via `env.value` |
 | Listener | Expose the source-configured port 3000 |
 
 ## Source analysis
@@ -48,8 +48,8 @@ the SQLite default does not override the explicit selection.
    application-specific names.
 4. Pass the developer-supplied password to the schema's sensitive resource
    property from a `@secure()` parameter, and assign that same parameter directly
-   to the workload's `MYSQL_PASSWORD` `env.value`. Radius encrypts and injects
-   it, so no wrapper secret or `secretKeyRef` is needed.
+   to the workload's `MYSQL_PASSWORD` `env.value`. Radius encrypts and injects it,
+   so no wrapper `Radius.Security/secrets` resource or `secretKeyRef` is needed.
 5. Referencing the image and MySQL host creates dependency
    ordering. Omit a generic connection unless the request explicitly requires
    Radius relationship metadata or the source consumes its exact projection.

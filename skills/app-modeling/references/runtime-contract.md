@@ -53,7 +53,7 @@ Record this contract for every executable role:
 | Field | Questions to answer |
 |---|---|
 | Role | Long-running web service, worker, scheduler, migration/init job, sidecar, or one-shot CLI? |
-| Image | Complete source build or pinned published image? Which exact checkout commit, immutable release tag, or digest? Does the exact Recipe safely handle omitted `tag` and other optional inputs? Which platforms does it build, and can this Dockerfile build all of them? |
+| Image | For the application's own code, which complete Dockerfile context and exact checkout commit or immutable release tag will be source-built? For a genuinely third-party/backing container, which pinned image tag or digest is used? Does the exact Recipe safely handle omitted `tag` and other optional inputs? Which platforms does it build, and can the Dockerfile build all of them? |
 | Process | What do the image entrypoint and command run? Is an override required and does the image contain the required executable or shell? |
 | Listener | Which address, port, and protocol does the process actually use? Which setting configures it? |
 | Configuration | Which exact environment variables, flags, files, nesting syntax, casing, version-specific names, representations, parser coercions, unset behavior, and defaults are consumed? |
@@ -68,8 +68,8 @@ Model separate web, worker, producer, consumer, and init roles separately even w
 
 For each required app-native input, choose exactly one supported source:
 
-- explicit `env.value` from a literal, a verified nonsecret resource output, or a developer-supplied `@secure()` parameter;
-- `valueFrom.secretKeyRef` using an exact recipe-generated managed secret resource and key;
+- explicit `env.value` from a literal, a verified nonsecret resource output, or a developer-supplied `@secure()` parameter (Radius encrypts and injects it);
+- `valueFrom.secretKeyRef` binding a secret resource and key: a recipe-generated managed secret via the owner's read-only `<resource>.properties.secrets.name`, or an authored `Radius.Security/secrets` (app secrets/config files, or a schema-required `secretName`);
 - runtime composition from previously bound values when the app requires a larger URL/config value; or
 - a generic Radius connection only when the source parses the exact connection projection supplied by the configured Radius version.
 
@@ -91,7 +91,7 @@ For every workload-to-resource edge, account for all applicable fields:
 | Protocol | Client wire protocol and version supported by the concrete backend |
 | Transport security | TLS mode, certificate behavior, and encryption flags expected by source |
 | Authentication | Mechanism, identity/username, and source-supported config syntax |
-| Secret | Developer-supplied credential from a `@secure()` parameter assigned to `env.value`, or an exact recipe-generated/authored secret bound with `secretKeyRef` |
+| Secret | A developer-supplied credential from a `@secure()` parameter assigned to `env.value`, or a recipe-generated/authored secret bound with `secretKeyRef` |
 | Final format | Native URL, nested environment key, JAAS/config block, or generated file actually parsed by the workload |
 
 A resource output named `host` may be only one segment of the endpoint. A type name such as Kafka or RabbitMQ does not prove broker compatibility. Apply provider-specific values in `app.bicep` when the application must consume them, while keeping provider provisioning in Environment Bicep.
@@ -108,7 +108,7 @@ A resource output named `host` may be only one segment of the endpoint. A type n
 - If required configuration is not packaged in the image, generate or mount it only through a schema-supported mechanism. Validate the complete file syntax, expansion rules, destination ownership, and command that consumes it.
 - For `Radius.Compute/containerImages`, pin the Git source to the exact modeled checkout. Inspect the exact Recipe's omitted-tag path and set a Docker-valid immutable tag when omission is broken.
 - Inspect the exact image Recipe's default platforms. If the Dockerfile executes target-architecture binaries without a verified `BUILDPLATFORM`/`TARGETARCH` strategy or emulation, set an explicit platform supported by the deployment target.
-- BuildKit Git contexts omit `.git` by default. When the Dockerfile copies `.git` or a required build step invokes Git metadata, require schema-supported `BUILDKIT_CONTEXT_KEEP_GIT_DIR=1`; otherwise use a pinned published image or report the packaging gap.
+- BuildKit Git contexts omit `.git` by default. When the Dockerfile copies `.git` or a required build step invokes Git metadata, require schema-supported `BUILDKIT_CONTEXT_KEEP_GIT_DIR=1`; otherwise report the packaging gap.
 
 ## Prove primary-feature readiness
 
@@ -135,7 +135,7 @@ Before returning the model:
 1. Account for every required app-native environment/config input or document an intentional source default.
 2. Close every explicit acceptance criterion in the requirement ledger; preserve required literal values, resource-name parameters, and exact relationship names.
 3. Reject every resource property read/write that lacks a closed ledger row proving its exact schema path and, for generated outputs, its exact Recipe mapping.
-4. Confirm every developer-supplied secret flows through a `@secure()` parameter and every recipe-generated secret uses the exact managed-secret path/key; no authored wrapper copies an output or composes a credential-bearing aggregate.
+4. Confirm every developer-supplied secret flows through a `@secure()` parameter and directly to `env.value` when the app consumes it; every recipe-generated secret uses `secretKeyRef` with the exact managed-secret path/key; and every authored secret is a genuine app secret/config file or schema-required secret. No authored wrapper copies an output or composes a credential-bearing aggregate.
 5. Confirm every declared port matches a configured process listener.
 6. Confirm every source build pins the modeled revision, supplies safe values for broken optional Recipe paths, selects compatible platforms, and preserves required Git metadata.
 7. Confirm every command/argument and generated config file is compatible with the image entrypoint and available binaries.

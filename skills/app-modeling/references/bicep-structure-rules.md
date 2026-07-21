@@ -60,7 +60,7 @@ Rules:
 - `connections` is a TOP-LEVEL property under `properties` — NOT inside `containers`
 - `disableDefaultEnvVars` goes on the connection entry, NOT on the container
 - Port property is `containerPort`, NOT `port`
-- `env` values use `{ value: ... }` for literals, verified nonsecret outputs, or developer-supplied `@secure()` parameters. Use `{ valueFrom: { secretKeyRef: { secretName: ..., key: ... } } }` for recipe-generated managed secrets or genuine authored app secrets
+- `env` values use `{ value: ... }` for a literal, a verified nonsecret output, or a developer-supplied `@secure()` parameter (Radius encrypts and injects it); use `{ valueFrom: { secretKeyRef: { secretName: ..., key: ... } } }` to bind a secret resource, whether a recipe-generated managed secret (via `<resource>.properties.secrets.name`) or an authored `Radius.Security/secrets`
 - `containerPort` exposes the process port; it does not configure the process listener
 - `command` replaces the image `ENTRYPOINT`, and `args` replaces `CMD`; override only after inspecting the image contract and required binaries
 - Never **set** a read-only property. Reference a nonsecret read-only output only when the exact schema declares it and the exact target Recipe explicitly maps it
@@ -138,9 +138,9 @@ Rules:
 - Optional `build.dockerfile` (path to the Dockerfile relative to the source; defaults to `Dockerfile`)
 - Resolve the exact Recipe's default platforms before omitting `build.platforms`. Use a multi-platform default only when the Dockerfile has a verified cross-build strategy or the builder has verified emulation. Otherwise set an explicit platform list compatible with the Dockerfile and target runtime; do not assume QEMU/binfmt is available
 - `tag` is schema-optional, but omission is valid only when the exact target Recipe handles the absent/null value safely. If its computed-tag path is broken, set a Docker-valid immutable tag derived from the modeled source commit
-- Inspect the Dockerfile and build commands for required Git metadata. BuildKit Git contexts omit `.git`; when required, set schema-supported `build.args.BUILDKIT_CONTEXT_KEEP_GIT_DIR: '1'`, use a pinned published image, or report the packaging gap
+- Inspect the Dockerfile and build commands for required Git metadata. BuildKit Git contexts omit `.git`; when required, set schema-supported `build.args.BUILDKIT_CONTEXT_KEEP_GIT_DIR: '1'` or report the packaging gap
 - The container references the built image via `<serviceName>Image.properties.imageReference`; this reference creates the dependency edge, so NO separate connection to the image is needed
-- Use `containerImages` only when the source includes a complete, practical Dockerfile and build context. Do not invent a wrapper build merely to avoid a maintained published image
+- Use `containerImages` only when the source includes a complete, practical Dockerfile and build context. Do not invent a fragile wrapper build around an incomplete application context
 - Registry credentials used to push a generated image are distinct from Kubernetes credentials used to pull it at runtime
 
 ## Radius.Data/* structure
@@ -195,7 +195,7 @@ resource dbSecret 'Radius.Security/secrets@2025-08-01-preview' = {
 ```
 
 Rules:
-- Use only when the exact schema supports it: for a type's required `secretName` input or genuine application secrets/config files
+- Use only when the exact schema supports it: for a type's required secret input (`secretName`), or app secrets/config files
 - Do not re-author a recipe-generated output. Bind directly from its schema-declared managed secret, or report that the exact contract cannot supply it
 - Never set authored secret `data.value` from a recipe resource's sensitive output or a guessed convenience property
 - NEVER hardcode passwords — use `@secure() param`
@@ -203,7 +203,7 @@ Rules:
 - Keys in `data` must match their exact consumer or schema contract; do not impose universal casing
 - `USERNAME` is the database administrator you author (e.g. `myadmin`) — it is not derived from the source
 - Assign a developer-supplied `@secure()` parameter directly to the container's `env.value`; Radius encrypts and injects it. Do not author a wrapper secret or use `secretKeyRef` for that value
-- Use `valueFrom.secretKeyRef` with `<resource>.properties.secrets.name` and the exact key only for recipe-generated managed secrets; never replace this nested contract with a stale direct property or generic connection projection
+- Use `valueFrom.secretKeyRef` with `<resource>.properties.secrets.name` and the exact key for recipe-generated managed secrets; never replace this nested contract with a stale direct property or generic connection projection. `secretKeyRef` may also consume a genuine authored app secret or schema-required secret resource
 - Never use authored secret `data.value` interpolation to manufacture a credential-bearing URL or configuration value
 
 ## Radius.Compute/routes structure
@@ -238,9 +238,11 @@ Rules:
 
 ## Image resolution
 
-1. If the repo publishes a suitable image, use an immutable digest or pinned release tag directly.
-2. Otherwise, if a complete practical Dockerfile and build context exist, use `Radius.Compute/containerImages` with an immutable `build.source` ref, a valid immutable tag when the Recipe's omitted-tag path is broken, and explicit platforms whenever the Recipe default is not proven compatible.
-3. If neither path is viable, report the packaging gap instead of using a bare runtime base image or inventing a fragile build wrapper.
+The repository must contain a Dockerfile; a repo without one is unsupported at launch and the skill stops before modeling (see the [Prerequisites in SKILL.md](../SKILL.md#prerequisites)). Building the application's own workloads from that Dockerfile is the default path:
+
+1. Build the application's own workloads from a complete, practical repository Dockerfile/context using `Radius.Compute/containerImages` with an immutable `build.source` ref, a valid immutable tag when the Recipe's omitted-tag path is broken, and explicit platforms whenever the Recipe default is not proven compatible.
+2. Use a published image (immutable digest or pinned release tag) only for a genuinely third-party/backing container (for example a stock proxy, admin UI, or monitoring sidecar), never for the application's own code.
+3. If a required workload has neither a usable Dockerfile (application code) nor a suitable maintained published image (third-party component), report the packaging gap instead of using a bare runtime base image or inventing a fragile build wrapper.
 
 Do not use branch refs or `latest` when an immutable commit, tag, or digest is available.
 

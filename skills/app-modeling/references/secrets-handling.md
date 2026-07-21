@@ -13,7 +13,7 @@ For every secret, inspect:
 
 Preserve any explicit profile requirement that a recipe-generated or genuine application secret reach a particular native key through `secretKeyRef`. Binding it under a helper name does not satisfy a workload that reads the required key directly. A developer-supplied credential remains a direct `@secure()` `env.value` binding.
 
-Never hardcode passwords, tokens, keys, or credential-bearing URLs. Use a `@secure()` parameter for developer-supplied Bicep inputs. Radius carries it to schema-sensitive resource properties and encrypts and injects it when assigned directly to a container `env.value`.
+Never hardcode passwords, tokens, keys, or credential-bearing URLs. Use a `@secure()` parameter for developer-supplied Bicep inputs. Radius carries a `@secure()` parameter to a sensitive resource property and, when the parameter is assigned to a container `env.value`, injects it into the container without materializing it into plain state.
 
 ## Developer-supplied secret inputs
 
@@ -23,7 +23,7 @@ Follow the exact resource schema:
 - If it defines a secret reference such as `secretName`, author the supported secret resource and reference it exactly as the schema requires.
 - If it defines no credential input, do not invent one.
 
-When the application also needs a developer-supplied credential, assign the same `@secure()` parameter directly to the container's `env.value`. Do not author a `Radius.Security/secrets` wrapper for a value already held as a parameter, and do not route it through `secretKeyRef`. A sensitive resource input is not readable back from the resource, so supply the same parameter independently to both:
+When the application container also needs that developer-supplied credential (for example, it reads `MYSQL_PASSWORD`), assign the same `@secure()` parameter directly to the container's `env.value`. Radius encrypts the parameter and injects it into the container, so do not author a `Radius.Security/secrets` wrapper for a value you already hold as a parameter, and do not route it through `secretKeyRef`. A sensitive resource *input* is not readable back from the resource, so supply the value to the app from the same parameter:
 
 ```bicep
 @secure()
@@ -48,7 +48,7 @@ resource apiContainer 'Radius.Compute/containers@2025-08-01-preview' = {
       api: {
         image: apiImage.properties.imageReference
         env: {
-          APP_PASSWORD: {
+          MYSQL_PASSWORD: {
             value: password
           }
         }
@@ -58,7 +58,7 @@ resource apiContainer 'Radius.Compute/containers@2025-08-01-preview' = {
 }
 ```
 
-The names above are illustrative. Confirm the resource properties, app-native variable, and value format against the exact target contract and source. Reserve an authored `Radius.Security/secrets` resource for genuine application secrets/config files or a type whose schema requires `secretName`.
+The names above are illustrative. Confirm the resource properties, app-native variable name, and required value format against the exact target contract and source. For a recipe-generated managed-secret output (below), bind it with `secretKeyRef` to the recipe's managed secret via `<resource>.properties.secrets.name`; do not author a wrapper secret. Reserve an authored `Radius.Security/secrets` resource for genuine application secrets/config files or a type whose schema requires `secretName`.
 
 ## Recipe-generated secret outputs
 
@@ -81,9 +81,9 @@ APP_API_KEY: {
 }
 ```
 
-The names are illustrative. `properties.secrets.name` identifies the managed `Radius.Security/secrets` resource, while other fields declared under `properties.secrets` name keys stored in that resource. They are metadata, not secret values readable from `service.properties.apiKey` or `service.properties.secrets.apiKey`.
+The names are illustrative. `<resource>.properties.secrets.name` identifies the managed `Radius.Security/secrets` resource, while other fields declared under `<resource>.properties.secrets` name keys stored in that resource. They are metadata, not secret values readable from `service.properties.apiKey` or `service.properties.secrets.apiKey`.
 
-Bind a complete managed URL/connection string directly to the app-native key when its format matches the pinned source. Never create an authored `Radius.Security/secrets` wrapper whose `data` copies a recipe-generated value from a resource property. An authored secret is not an adapter for a missing or different output shape.
+Bind a complete managed URL/connection string directly to the app-native key when its format matches the pinned source. Radius itself materializes recipe secret outputs into the managed `Radius.Security/secrets` and populates the read-only `<resource>.properties.secrets.name`, so the app definition never authors, names, or duplicates that resource; it only binds to it by reference. Never create an authored `Radius.Security/secrets` wrapper whose `data` copies a recipe-generated value from a resource property. An authored secret is not an adapter for a missing or different output shape.
 
 Do not assume one universal `properties.secrets` path or guess a key. If the exact schema/recipe does not expose the required managed-secret reference and key, report the gap. If a mutable compiled extension disagrees with that exact contract, report version drift rather than inventing a convenience property or wrapper.
 
@@ -95,7 +95,7 @@ A conflicting mutable extension is not evidence that the target Recipe's managed
 
 Applications often require one URL or config value that embeds a secret. Bicep interpolation would materialize the combined value before the container starts, so prefer runtime composition:
 
-1. Bind the secret into a helper environment variable: use direct `env.value` from the `@secure()` parameter for a developer-supplied credential, or `secretKeyRef` from the exact managed-secret name/key for a recipe-generated value.
+1. Bind the secret into a helper environment variable: from the `@secure()` parameter via `env.value` for a developer-supplied credential, or via `secretKeyRef` from `<resource>.properties.secrets.name` for a recipe-generated output.
 2. Bind nonsecret host, port, database, and username values from verified outputs or literals.
 3. Declare the helper before dependent values when the runtime requires ordering.
 4. Compose the final app-native value in the container runtime or let the application construct it. The final key and syntax must exactly match the selected pinned-source contract.
@@ -105,10 +105,11 @@ For a non-URL format, the pattern can look like:
 ```bicep
 env: {
   DB_PASSWORD: {
-    value: password
+    value: password // developer-supplied @secure() parameter
   }
   APP_DATABASE_OPTIONS: {
-    value: 'host=${database.properties.host};password=$(DB_PASSWORD)'
+    // mysql is the database resource symbol; substitute your actual resource
+    value: 'host=${mysql.properties.host};password=$(DB_PASSWORD)'
   }
 }
 ```
@@ -139,6 +140,7 @@ If neither path exists, report the schema/application contract gap and do not em
 - No authored secret `data.value` references a recipe resource output or guessed convenience property.
 - No authored secret `data.value` interpolates an aggregate credential-bearing URL/config.
 - No secret is hardcoded, assumed URL-safe, or assumed to appear in generic connection variables.
-- `@secure()` values flow only through properties marked sensitive or direct container `env.value`.
+- A developer-supplied `@secure()` value flows only through schema-sensitive properties or direct container `env.value`, never through a wrapper secret or `secretKeyRef`.
+- `secretKeyRef` binds a recipe-generated value only through the owner's exact read-only managed-secret name/key. It may also consume an authored `Radius.Security/secrets`, which is allowed only for genuine application secrets/config files or a type whose schema requires `secretName`, never to wrap a recipe output.
 - Runtime composition preserves dependency order, escaping, encoding, and image entrypoint behavior.
 - A final credential-bearing URL/config is bound from a matching managed secret or safely composed at runtime; it is never reconstructed in Bicep or an authored secret.

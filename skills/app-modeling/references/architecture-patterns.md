@@ -1,6 +1,6 @@
 # Architecture Patterns
 
-Composition is **component-driven**: detect the app's executable workloads and backing services mandatory for the selected startup/configuration path, extract each workload's [runtime contract](runtime-contract.md), map components through [component-catalog.md](component-catalog.md), and emit those resources. The patterns below are a **lens for context**, not resource requirements or rigid buckets — a real app often combines several (e.g. a Web App that is also AI/ML). Pick a *primary* pattern for the summary, but let selected-path source behavior drive the Bicep.
+Composition is **component-driven**: detect the app's executable workloads and backing services, extract each workload's [runtime contract](runtime-contract.md), map components through [component-catalog.md](component-catalog.md), and emit those resources. The patterns below are a **lens for context**, not rigid buckets — a real app often combines several (e.g. a Web App that is also AI/ML). Pick a *primary* pattern for the summary, but let detected components and source behavior drive the Bicep.
 
 If a detected component has no Radius type yet, note the gap and continue with the supported components; don't substitute an unrelated type.
 
@@ -10,7 +10,7 @@ If a detected component has no Radius type yet, note the gap and continue with t
 Request/response web applications (monolith or MVC).
 - **Signals**: HTTP framework (Express, Django, Rails, Flask, Spring MVC, ASP.NET); server-rendered or REST; usually one primary database.
 - **Typical components**: container + a relational or document database + optional cache + external ingress.
-- **Radius types**: `Radius.Compute/containers` (+ `Radius.Compute/containerImages` for a complete source build) + `Radius.Data/*` + `Radius.Compute/routes`. Credentials follow the data type's schema; a developer-supplied `@secure()` credential goes directly to container `env.value`, while `Radius.Security/secrets` is reserved for schema-required `secretName` inputs or genuine app secrets/config files.
+- **Radius types**: `Radius.Compute/containers` (+ `Radius.Compute/containerImages` for a complete source build) + `Radius.Data/*` + `Radius.Compute/routes`. Credentials follow the data type's schema; `Radius.Security/secrets` is used only when the exact contract requires an authored secret or the workload needs a secure binding for a developer-supplied value.
 
 ### Microservices
 Distributed services communicating via APIs or messages.
@@ -45,9 +45,9 @@ Line-of-business applications with compliance and integration needs.
 LLM inference, vector search, and model-backed features.
 - **Signals**: LLM SDKs (`openai`, `anthropic`, `@google/generative-ai`, LangChain); embeddings/vector clients; search clients.
 - **Typical components**: container + an LLM model endpoint + a search index + secure API-key binding + optionally a database for embeddings.
-- **Radius types**: `Radius.Compute/containers` + `Radius.AI/models` + `Radius.AI/search` (+ `Radius.Data/postgreSqlDatabases` only when the selected source path requires Postgres).
+- **Radius types**: `Radius.Compute/containers` + `Radius.AI/models` + `Radius.AI/search` (+ `Radius.Security/secrets` only for developer-supplied app secrets, and `Radius.Data/postgreSqlDatabases` when Postgres is the store).
 - **Readiness check**: when the selected profile requires inference, configure at least one usable source-supported model alias/provider route with its exact endpoint, key, and API/protocol version. A proxy UI or metadata database without a model route is not inference-ready.
-- **Gap**: dedicated vector databases and pgvector's vector features aren't modeled. Use Postgres only when the selected source path requires it, and report any unsupported vector-feature gap.
+- **Gap**: dedicated vector databases and pgvector's vector features aren't modeled — use Postgres for storage and report the vector gap.
 
 ### IoT
 Device telemetry ingestion and command/control.
@@ -57,7 +57,7 @@ Device telemetry ingestion and command/control.
 
 ## How to apply (component-driven)
 
-1. From the source, list every executable workload and backing service mandatory for the selected startup/configuration path. Do not promote optional extras, adapters, examples, or alternate profiles.
+1. From the source, list every executable workload and backing service the app connects to.
 2. Map each component to a Radius type via [component-catalog.md](component-catalog.md).
 3. Note the primary pattern above for the summary — remember apps can combine patterns.
 4. For any component with no Radius type, report the gap and continue with the supported ones (stop only if the missing piece is essential and the user must decide).

@@ -46,7 +46,7 @@ Before writing the Bicep, confirm the repository satisfies the [Prerequisites](#
 3. Inventory every executable workload and backing service in the selected profile from manifests, Dockerfiles, compose/Helm files, entrypoints, source configuration reads, client initialization, and referenced config files. Treat web, worker, producer, consumer, migration, scheduler, and sidecar roles separately. Model a backing service only when source evidence proves it is mandatory for the selected startup/configuration path; a repo-wide optional dependency, extra, adapter, or example does not become a resource.
 4. Extract each workload's runtime contract: image/build context and target platform, entrypoint and arguments, listener and ports, required environment/configuration including parser coercion and unset behavior, secrets, writable storage, dependencies, wire protocols, authentication/bootstrap setup, and feature-critical configuration. Inspect CLI flags and structured fields as well as environment variables.
 5. Map every selected backing service to a Radius type with [component-catalog.md](references/component-catalog.md), using [architecture-patterns.md](references/architecture-patterns.md) only as context. Report unsupported essential components instead of substituting unrelated types.
-6. First create or update `.radius/bicepconfig.json` (see [bicepconfig.json](#bicepconfigjson)), using any `bicepconfig.json` currently applicable to `.radius/app.bicep` as input. Resolve every emitted type and planned property read/write against the exact target Environment schema and Recipe contract, then reconcile that contract with the extension that `.radius/bicepconfig.json` declares. For every output, open the exact Environment recipe or matching immutable provider recipe-pack source and record the verbatim mapping; schema descriptions and property names are not recipe evidence. Also prove each managed-secret name/key, every omitted optional recipe input, and target Environment recipe availability for every emitted extensible type. The exact target schema and Recipe outrank stale mutable extension metadata such as `radius:latest`. Refresh or pin a verified compatible extension when possible; otherwise fail closed before generation rather than changing or deleting required wiring to fit the stale artifact.
+6. First create or update `.radius/bicepconfig.json` (see [bicepconfig.json](#bicepconfigjson)), using any `bicepconfig.json` currently applicable to `.radius/app.bicep` as input. Resolve every emitted type and planned property read/write against the exact target Environment schema and Recipe contract, then reconcile that contract with the extension that `.radius/bicepconfig.json` declares. For every output, open the exact Environment recipe or matching immutable provider recipe-pack source and record the verbatim mapping; schema descriptions and property names are not recipe evidence. Also prove each managed-secret name/key, every omitted optional recipe input, and target Environment recipe availability for every emitted extensible type. The exact target schema and Recipe outrank stale mutable extension metadata such as `bicep-types-radius:edge`. Refresh or pin a verified compatible extension when possible; otherwise fail closed before generation rather than changing or deleting required wiring to fit the stale artifact.
 7. Build the application's own workloads from the repository Dockerfile via `Radius.Compute/containerImages`; use a pinned published image only for a genuinely third-party or backing container. Require a complete, practical build context and pin `build.source` to the exact modeled checkout or an explicit immutable release tag. Resolve the exact `containerImages` Recipe: set a Docker-valid immutable `tag` when its omitted-tag path is not proven usable, select explicit target-compatible `build.platforms` when the Dockerfile cannot safely build every default platform, and preserve required Git metadata with schema-supported build arguments. If an application workload's Dockerfile or context is unusable, report the packaging gap instead of substituting a published image for the application's own code. Map every runtime value using [connection-conventions.md](references/connection-conventions.md), [secrets-handling.md](references/secrets-handling.md), and [bicep-structure-rules.md](references/bicep-structure-rules.md).
 8. Generate the Bicep using [naming-conventions.md](references/naming-conventions.md), then run `node "<loaded-skill-base>/scripts/validate-bicep.mjs" .radius/app.bicep`. The checker uses only the extension-managed Bicep. Repair every compiler error and warning until the checker exits successfully and prints no warnings. Never make compilation pass by deleting a required backend activation, native configuration value, secret binding, or dependency edge.
 9. Perform the [validation checklist](#validation-checklist) and close every item in the requirement ledger. Compilation or process startup alone is not success.
@@ -127,7 +127,7 @@ Explicit profile-required resource, relationship, parameter, and app-native conf
 
 ### Extensible types (from `radius-project/resource-types-contrib`)
 
-First inspect the target repository's `bicepconfig.json`: the `radius` extension alias is the local compile-time contract. Resolve schemas from the `resource-types-contrib` revision that produced that artifact and from the target Environment's registered type definition and Recipe. A mutable artifact such as `radius:latest`, a recipe tagged `latest`, or a branch ref can drift. The exact target Environment schema and Recipe are authoritative for deployment; a clean compile against conflicting mutable metadata is not validation and must not override that contract.
+First inspect the target repository's `bicepconfig.json`: the `radius` extension alias is the local compile-time contract. Resolve schemas from the `resource-types-contrib` revision that produced that artifact and from the target Environment's registered type definition and Recipe. A mutable artifact such as `bicep-types-radius:edge`, a recipe tagged `latest`, or a branch ref can drift. The exact target Environment schema and Recipe are authoritative for deployment; a clean compile against conflicting mutable metadata is not validation and must not override that contract.
 
 Use the `radius-project/resource-types-contrib` repository for discovery. Do NOT hardcode a file path — derive it from the resource type name using the repo convention:
 
@@ -167,22 +167,43 @@ Declare `extension radius`. It provides every predefined Radius type (`Radius.Co
 
 `app.bicep` cannot compile or deploy unless a `bicepconfig.json` resolves the `radius` extension. Always create or update `.radius/bicepconfig.json` (co-located with `.radius/app.bicep`) so it fits the generated `app.bicep`; only ever write that file, never a `bicepconfig.json` outside `.radius/`. When the application uses a generated custom type, this file also aliases the local custom-types extension tgz alongside the `radius` extension (see [custom-resource-types.md](references/custom-resource-types.md)).
 
-- If `.radius/bicepconfig.json` already exists, update it to fit `app.bicep`: add or correct what `app.bicep` needs (the `radius` extension reference and `extensibility`), preserve unrelated existing settings, and change or remove entries only where they conflict with what `app.bicep` needs. An already-correct file produces an empty diff.
+Use a released Radius CLI whose Bicep compiler supports OCI Bicep extensions
+and the selected GHCR artifacts. Confirm compatibility before generation;
+a CLI without that support or an unreleased build is not sufficient. If no
+compatible released CLI is available, stop and report the release dependency
+rather than guessing a minimum version or falling back to ACR.
+
+- If `.radius/bicepconfig.json` already exists, update it to fit `app.bicep`: add or correct what `app.bicep` needs (the `radius` extension reference and `experimentalFeaturesEnabled.extensibility = true` and `experimentalFeaturesEnabled.ociEnabled = true`), preserve unrelated existing settings (including other experimental feature flags and extension aliases), and change or remove entries only where they conflict with what `app.bicep` needs. An already-correct file produces an empty diff.
 - If it does not exist, create it. When a `bicepconfig.json` in a parent directory would otherwise be the config discovered for `.radius/app.bicep` (before you write `.radius/bicepconfig.json`), use it as input: seed the new file from its compatible settings and adjust so it fits `app.bicep` (add, correct, or drop entries as needed). Do not modify the parent file.
 - When there is nothing to carry forward, create `.radius/bicepconfig.json` with:
 
 ```json
 {
   "experimentalFeaturesEnabled": {
-    "extensibility": true
+    "extensibility": true,
+    "ociEnabled": true
   },
   "extensions": {
-    "radius": "br:biceptypes.azurecr.io/radius:latest"
+    "radius": "br:ghcr.io/radius-project/bicep-types-radius:edge"
   }
 }
 ```
 
-Default to the `radius:latest` tag only when no exact target Environment contract is available. Pin a verified compatible immutable reference when one is provided by an existing `bicepconfig.json`, the user, or the target Environment. If `radius:latest` is proven to disagree with the target schema or Recipe, replace it with a verified compatible reference or fail closed; never weaken `app.bicep` to fit the mutable artifact.
+Use `br:ghcr.io/radius-project/bicep-types-radius:<tag>` for the Radius
+extension. If an AWS extension is needed or already configured, use
+`br:ghcr.io/radius-project/bicep-types-aws:<tag>` for it; do not add AWS to
+applications that do not need it.
+
+When migrating existing extension references from
+`br:biceptypes.azurecr.io/radius:<tag>` or
+`br:biceptypes.azurecr.io/aws:<tag>`, map the ACR development `latest` tag
+to GHCR `edge`, not to a stable channel. Preserve stable channel intent and
+exact full-version tags; do not replace a release pin with `edge`. Verify
+the corresponding tag exists and is compatible before using it. This mapping
+applies only to these two Bicep extensions, not container images, recipes,
+test tenants, historical references, or local custom-types extensions.
+
+Default to the `bicep-types-radius:edge` tag only when no exact target Environment contract is available. Pin a verified compatible immutable reference when one is provided by an existing `bicepconfig.json`, the user, or the target Environment. If `bicep-types-radius:edge` is proven to disagree with the target schema or Recipe, replace it with a verified compatible reference or fail closed; never weaken `app.bicep` to fit the mutable artifact.
 
 ## app.bicep Structure (mandatory order)
 
@@ -248,7 +269,7 @@ Before returning the Bicep, verify:
 - [ ] Primary-feature readiness is proven: required model aliases, storage backends, database clients, messaging inputs/outputs, and noninteractive authentication/bootstrap settings are configured and reference the selected resources. A health endpoint, login screen without a usable bootstrap path, or idle/placeholder process is not sufficient.
 - [ ] No ledger row was closed by deleting required wiring to obtain a clean compile. Any schema, Recipe, or Environment availability mismatch produced a fail-closed report instead of a partial application definition.
 - [ ] Perform the static consistency pass in [runtime-contract.md](references/runtime-contract.md); no unresolved runtime caveat remains.
-- [ ] The generated Bicep contains no explanatory comments. `.radius/bicepconfig.json` resolves the `radius` extension for `app.bicep`: created or updated in place (a parent `bicepconfig.json` is used only as input, never modified).
+- [ ] The generated Bicep contains no explanatory comments. `.radius/bicepconfig.json` resolves the `radius` extension for `app.bicep`: created or updated in place (a parent `bicepconfig.json` is used only as input, never modified). Its effective `experimentalFeaturesEnabled` includes both `extensibility: true` and `ociEnabled: true`, preserving unrelated options. The selected GHCR extension tags are available and compatible with the released Radius CLI used for validation.
 
 ## Example
 
